@@ -21,8 +21,8 @@ asks before it decides, and simulates before it recommends.**
    scenarios across query latency, query cost, maintenance cost, and storage
    cost, driven by the table's real numbers, so you optimize for the axis you
    care about.
-5. **Plan** with exact, engine-specific commands (Spark, Trino, AWS Glue, Flink)
-   and a schedule.
+5. **Plan** with exact, engine-specific commands (Spark, Trino, AWS Glue/EMR,
+   Snowflake, Flink / Kafka Connect) and a schedule.
 
 ## Install
 
@@ -67,7 +67,12 @@ SKILL.md                          orchestrator: the 5-phase flow
 references/metadata-tables.md     metadata table schemas + diagnostic queries
 references/workload-interview.md  derive-then-ask question bank
 references/decision-framework.md  joint scoring rules + intent gates
-references/procedures.md          verified Spark/Trino/Glue/Flink syntax
+references/procedures.md          routing index → per-engine procedures
 references/scheduling.md          archetype→schedule matrix + triggers
+references/testing.md             how to validate recommendations safely
+engines/                          per-engine syntax: spark · trino · glue ·
+                                  snowflake · ingestion
 scripts/                          profile_table · parse_query_log · simulate
+tests/                            unit tests + skill_benchmark fixtures
+docker/                           local Spark + Iceberg sandbox
 ```
