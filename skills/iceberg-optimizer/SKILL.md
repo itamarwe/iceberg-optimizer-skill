@@ -15,63 +15,45 @@ description: >-
 
 # Iceberg Optimizer
 
-A maintenance plan is only as good as the workload it is tuned for. The wrong
-move is to reach for the standard "compact + sort + expire snapshots" runbook
-before knowing how the table is written, how it is read, and what the owner is
-actually paying for. The same table can warrant aggressive daily sort compaction
-or *no maintenance at all* depending on query frequency and cost priorities.
+A maintenance plan is only as good as the workload it is tuned for. Don't reach
+for the standard "compact + sort + expire" runbook before knowing how the table
+is written, how it is read, and what the owner pays for — the same table can
+warrant aggressive daily sort compaction or *no maintenance at all*.
 
 **Observe before you ask. Ask before you decide. Simulate before you recommend.**
 
-**CRITICAL — gradual loading:** Do NOT read any file beyond SKILL.md itself
-until the engine and access mode are identified in Phase 0. Load reference
-files only at the phase boundary where they are first needed, and only the
-specific sections that are relevant. Loading everything up front pollutes
-context with information that may never apply to this table or engine.
+**CRITICAL — gradual loading:** Read nothing beyond this file until the engine
+and access mode are identified in Phase 0. Then load only the relevant sections
+of reference/engine files at the boundary where they are needed (the
+`> Load (...)` callouts mark when). Loading everything up front pollutes context
+with information that may never apply to this table.
 
 ## The flow
 
-```
-0. Scope        identify table(s), engine, catalog; stay read-only until Phase 5
-1. Profile      derive the table's physical state from metadata
-2. Workload     2a derive ingestion signals from metadata & query logs
-                2b interview the owner for intent metadata cannot reveal
-3. Decide       joint scoring → candidate action groups (incl. "do nothing")
-4. Simulate     model perf / query-cost / maintenance-cost / storage scenarios
-5. Plan         emit exact engine commands + schedule + monitoring thresholds
-```
+**0 Scope** (table, engine, mode; read-only) → **1 Profile** (physical state from
+metadata) → **2 Workload** (2a derive ingestion/access signals · 2b interview for
+intent) → **3 Decide** (joint scoring → action groups, incl. "do nothing") →
+**4 Simulate** (perf / query-cost / maintenance-cost / storage) → **5 Plan**
+(exact engine commands + schedule + monitoring). Each phase below opens with a
+`> Load (...)` callout naming exactly what to read.
 
 ### Phase 0 — Scope & safety
 
-Establish (ask if not stated):
+Establish (ask if not stated): **which table(s)** (`catalog.schema.table`) and
+**which engine** (Spark / Trino / Glue/EMR / Snowflake / Flink — syntax differs).
 
-- **Which table(s)** — fully-qualified: `catalog.schema.table`.
-- **Which engine** — Spark, Trino, AWS Glue/EMR, Snowflake, or Flink/Kafka Connect.
-  Syntax and capabilities differ significantly across engines.
-- **Read-only until Phase 5.** Never run `expire_snapshots`, `remove_orphan_files`,
-  `rewrite_data_files`, or any `ALTER TABLE` until the user has approved a specific
-  plan. `remove_orphan_files` and `expire_snapshots` *delete files* — treat them
-  as destructive.
+**Read-only until Phase 5.** Never run `expire_snapshots`, `remove_orphan_files`,
+`rewrite_data_files`, or any `ALTER TABLE` until a specific plan is approved —
+`remove_orphan_files` and `expire_snapshots` *delete files*; treat as destructive.
 
-**Detect access mode** (in this order):
-
-1. Check whether an Iceberg-capable SQL CLI is reachable: `trino`, `spark-sql`,
-   `beeline`, or env vars `TRINO_URL`, `SPARK_HOME`, `DATABRICKS_HOST`,
-   `SNOWFLAKE_ACCOUNT`. If found → **Direct mode**.
-2. Check whether the user already provided exported files (profile.json or metadata
-   CSVs) → **Exported mode**.
-3. Otherwise, ask: *"Can I run SQL directly against your catalog, or should I give
-   you queries to run and paste back?"* → Direct or **Ask-User mode**.
-
-| Mode | Who runs queries | When to use |
-|---|---|---|
-| Direct | Skill autonomously | Live catalog reachable |
-| Ask-User | User pastes output back | No direct access (default) |
-| Exported | Skill reads provided files | Files already on disk |
+**Detect access mode** (in order): **Direct** — an Iceberg-capable SQL CLI is
+reachable (`trino`, `spark-sql`, `beeline`, or env `TRINO_URL` / `SPARK_HOME` /
+`DATABRICKS_HOST` / `SNOWFLAKE_ACCOUNT`); the skill queries autonomously.
+**Exported** — the user provided files (profile.json / metadata CSVs); the skill
+reads them. **Ask-User** (default) — no access; ask *"Can I run SQL against your
+catalog, or should I give you queries to paste back?"* and the user pastes output.
 
 > **Load (Phase 0):** Nothing beyond SKILL.md. Detect mode and engine only.
-
----
 
 ### Phase 1 — Profile (metadata)
 
@@ -79,23 +61,17 @@ Establish (ask if not stated):
 > sections you need (e.g. `$files`, `$snapshots`, `$manifests`). Do NOT read the
 > full file.
 
-Read the table's physical state. Signal queries live in
-`references/metadata-tables.md`.
-
-**Mode branch:**
-- **Direct / Ask-User**: Run or request the diagnostic queries; collect output;
-  feed to `scripts/profile_table.py`.
-- **Exported**: Feed the exported files directly to `scripts/profile_table.py`.
+Read the table's physical state. Run/request the diagnostic queries from
+`references/metadata-tables.md` (Direct/Ask-User), or use the provided files
+(Exported), then feed them to the profiler:
 
 ```
 scripts/profile_table.py --snapshots S --files F [--partitions P] [--manifests M] --out profile.json
 ```
 
-Emits: file-size health, small-file pressure, delete-file pressure,
-snapshot/manifest bloat, mixed partition specs, total size and file count.
-This phase alone answers "is this table healthy?" and is safe on any table.
-
----
+Emits file-size health, small-file pressure, delete-file pressure,
+snapshot/manifest bloat, mixed partition specs, total size and file count — this
+phase alone answers "is this table healthy?" and is safe on any table.
 
 ### Phase 2 — Reconstruct the workload
 
@@ -107,68 +83,26 @@ This phase alone answers "is this table healthy?" and is safe on any table.
 Most ingestion and access questions are *answerable from metadata* — never ask
 the user something `$snapshots` and `$files` already answered.
 
-**Ingestion signals to derive:**
-
-| Signal | Source | Derived value |
-|---|---|---|
-| `write_cadence` | median inter-commit gap | `streaming` / `micro_batch` / `batch` |
-| `avg_added_file_mb` | `added-files-size` / `added-data-files` | number |
-| `thin_spread` | files/partition/commit ratio | bool |
-| `late_data` | event-time bounds vs `committed_at` | bool |
-| `eq_delete_pressure` | equality-delete records / data records | ratio |
-| `pos_delete_pressure` | position-delete files / data files | ratio |
-| `operation_mix` | `snapshots.operation` distribution | append / overwrite / merge counts |
-
-**Ingestion pipeline identification** — derive from the signal combination above,
-then confirm with the user (see `references/workload-interview.md` Part 1a):
-
-| Signal pattern | Likely writer |
-|---|---|
-| `streaming`, `avg_added_file_mb < 5`, `thin_spread = true` | Flink (default config) or Spark Structured Streaming, short trigger |
-| `streaming`, `avg_added_file_mb ≥ 50` | Flink with large checkpoint interval |
-| `micro_batch` (5s–5min commits) | Spark Structured Streaming |
-| `batch`, large commits, `late_data = false` | Spark batch ETL or dbt |
-| `batch`, small-to-medium commits, irregular intervals | Apache NiFi (`PutIcebergRecord`) or Beam batch |
-| `streaming`, small files, `thin_spread = false`, low parallelism | Apache Beam / Dataflow streaming with low `numShards` |
-| `operation_mix` dominated by full partition `overwrite`, regular cadence | Airbyte full-refresh or Fivetran managed sync |
-| high `overwrite` + `append` in `operation_mix` | CDC connector (Debezium, DeltaStreamer, Airbyte merge) |
-| `eq_delete_pressure > 0.05`, `merge` in `operation_mix` | MOR CDC — equality deletes accumulating |
-| `pos_delete_pressure > 0.2`, no equality deletes | COW CDC or MOR with position deletes |
-| `batch`, very large one-off commits then silence | AWS DMS migration or historical backfill |
-
-Always show the derived writer type and ask the user to confirm:
-*"Based on commit patterns (~Xs gaps, ~Y MB files, spread across N partitions),
-this looks like [writer type]. Is that right? What connector/framework writes to this table?"*
-
-**Determine ingestion fix eligibility** — add these to the signal set:
-- `distribution_mode`: if the user knows whether `write.distribution-mode` is set
-  (`none` / `hash` / `range`). Derive from thin_spread; ask to confirm.
-- `ingestion_write_mode`: `mor` / `cow` / `append_only`. Derive from delete file
-  presence; ask to confirm.
-- `checkpoint_interval_secs`: relevant for Flink/Spark SS. Derive from inter-commit
-  gap; ask to confirm.
+**Ingestion signals & writer identification:** Derive the ingestion signals
+(`write_cadence`, `avg_added_file_mb`, `thin_spread`, `late_data`, delete
+pressures, `operation_mix`), infer the likely writer from the signal pattern,
+and confirm with the user. The signal definitions, the signal-pattern→writer
+table, and the confirmation prompts all live in `references/workload-interview.md`
+Part 1a — also confirm `distribution_mode`, `ingestion_write_mode` (mor/cow), and
+`checkpoint_interval_secs` there, since Group 2 fixes are writer-specific.
 
 **Access pattern signals:**
 
 ```
-scripts/parse_query_log.py --spark-eventlog LOG   # or: --trino-queries QUERIES
-                           --table catalog.schema.table --out workload.json
-                           [--explain-analyze explain.txt]
+scripts/parse_query_log.py --table catalog.schema.table --out workload.json \
+    [--spark-eventlog LOG] [--trino-queries QUERIES] [--explain-analyze explain.txt]
 ```
 
-Extracts per-table: ranked WHERE-clause columns, range vs equality predicate type,
-partition-pruning effectiveness, query selectivity (rows scanned ÷ rows returned),
-query frequency.
-
-| Source | Flag | What the script reads |
-|---|---|---|
-| Trino `system.runtime.queries` export (JSON/CSV) | `--trino-queries` | `physical_input_bytes` |
-| Trino JSON event-listener log (NDJSON) | `--trino-queries` | `physicalInputDataSize` |
-| Spark event log | `--spark-eventlog` | "size of files read" metric |
-| Trino `EXPLAIN ANALYZE` output | `--explain-analyze` | `Physical Input Data Size:` lines |
-
-If none available, ask the user to run `EXPLAIN ANALYZE` on 3–5 representative
-queries and paste the output.
+Extracts per-table ranked WHERE-clause columns, range vs equality predicates,
+partition-pruning effectiveness, selectivity (rows scanned ÷ returned), and
+query frequency from Spark event logs, Trino query exports/event-listener logs,
+or Trino `EXPLAIN ANALYZE` (run `--help` for the fields each reads). If none are
+available, ask the user to run `EXPLAIN ANALYZE` on 3–5 representative queries.
 
 #### 2b — Interview for intent
 
@@ -176,43 +110,33 @@ queries and paste the output.
 > didn't already load it.
 
 Walk `references/workload-interview.md` Part 2. For each item, present what you
-derived in 2a; ask the user to confirm or correct; ask only the genuinely
-unknowable parts. Use `AskUserQuestion` — these are real decisions only the
-owner can make:
-
-- Query **latency** requirement (interactive vs batch-tolerant)
-- Query **frequency** and number of consumers
-- **Freshness** SLA
-- **Cost priority** (the `--priority` flag for `simulate.py`)
-- **Mutability outlook** (append-only vs updates/deletes/GDPR)
-- **Time-travel / replay / audit** need
-- **Lifecycle / worth** (hot / warm / cold / not worth optimizing)
-- **Retention / compliance** (only if deletes were observed in 2a)
-
----
+derived in 2a, then ask the user to confirm/correct only the genuinely unknowable
+parts. Use `AskUserQuestion` — these are real decisions only the owner can make:
+query **latency** requirement, query **frequency** & consumers, **freshness** SLA,
+**cost priority** (the `--priority` flag for `simulate.py`), **mutability outlook**
+(append-only vs updates/deletes/GDPR), **time-travel / replay / audit** need,
+**lifecycle / worth** (hot / warm / cold / not worth optimizing), and
+**retention / compliance** (only if deletes were observed in 2a).
 
 ### Phase 3 — Decide
 
 > **Load (Phase 3):** Read `references/decision-framework.md` in full.
 
 Apply `references/decision-framework.md`: it combines profile + workload signals
-into a ranked set of actions across **three groups**. A complete plan typically
-draws from more than one group.
+into a ranked set of actions across **three groups** (a complete plan usually
+draws from more than one):
 
-**Group 1 — Table Layout:** compaction strategy (bin-pack / sort / z-order),
-partition evolution, equality/position-delete compaction, format upgrade. Run
-these *after* fixing the writer.
-
-**Group 2 — Ingestion:** write-time distribution mode, file-size buffering,
-write-time sort order, CDC write-mode (MOR→COW). Run these *first* — fixing the
-writer before compacting its output prevents the problem from recurring.
-
-**Group 3 — Maintenance:** snapshot expiry, manifest rewrite, orphan file
-removal, bloom filters, scheduling. These are ongoing.
+- **Group 1 — Table Layout:** compaction (bin-pack / sort / z-order), partition
+  evolution, equality/position-delete compaction, format upgrade. Run *after* the writer.
+- **Group 2 — Ingestion:** write-time distribution mode, file-size buffering,
+  write-time sort order, CDC write-mode (MOR→COW). Run these *first* — fixing the
+  writer before compacting its output stops the problem recurring.
+- **Group 3 — Maintenance:** snapshot expiry, manifest rewrite, orphan removal,
+  bloom filters, scheduling. These are ongoing.
 
 Key gates that prevent over-engineering:
-- **Low query frequency + cold table → do little or nothing.** Maintenance compute
-  can cost more than it ever saves; pay at query time instead.
+- **Low query frequency + cold table → do little or nothing**; maintenance compute
+  can cost more than it ever saves, so pay at query time instead.
 - **Sort / z-order only when** queries are selective *and* read often enough to
   amortize the rewrite.
 - **Aggressive snapshot expiry only when** replay/time-travel is not needed.
@@ -221,8 +145,6 @@ Key gates that prevent over-engineering:
 > **Load (Group 2 only):** If any Group 2 actions are recommended, load
 > `engines/ingestion.md` now — it has the writer-specific configuration blocks.
 
----
-
 ### Phase 4 — Simulate
 
 > **Load (Phase 4):** No reference files — run `scripts/simulate.py` directly.
@@ -230,83 +152,48 @@ Key gates that prevent over-engineering:
 Build candidate scenarios and run:
 
 ```
-scripts/simulate.py --profile profile.json --workload workload.json
-                    [--assumptions a.json] --priority <storage|query_cost|latency|maintenance_cost>
+scripts/simulate.py --profile profile.json --workload workload.json \
+    [--assumptions a.json] --priority <storage|query_cost|latency|maintenance_cost>
 ```
 
-Produces comparison across **Do-nothing**, **Light**, **Targeted-sort**,
-**Aggressive**, and **Storage-min** scenarios. Present results as directional
-estimates with ranges, never as precise figures. Highlight the scenario that wins
-on the user's chosen priority.
-
-**Baseline bytes**: If `workload.json` has `selectivity.median_bytes_scanned`
-(from logs or EXPLAIN ANALYZE), that measured number is used directly. Otherwise
-falls back to `total_gb × (1 − prune_rate)`.
-
-Override `scan_fraction` when you have a post-compaction measurement:
-
-```bash
---assumptions '{"scan_fraction": {"targeted_sort": 0.18}}'
-```
-
----
+It compares **Do-nothing / Light / Targeted-sort / Aggressive / Storage-min**
+scenarios. Present results as directional estimates with ranges, never precise
+figures, and highlight the scenario that wins on the chosen priority. Baseline
+scan bytes come from
+`selectivity.median_bytes_scanned` when present (logs / EXPLAIN ANALYZE),
+otherwise `total_gb × (1 − prune_rate)`; override per-scenario scan fractions with
+a post-compaction measurement via `--assumptions '{"scan_fraction":
+{"targeted_sort": 0.18}}'`.
 
 ### Phase 5 — Plan
 
-> **Load (Phase 5):** Read ONLY the engine file matching the detected engine:
-> - Spark or AWS Glue/EMR → `engines/spark.md` (for Glue also read `engines/glue.md`)
-> - Trino → `engines/trino.md`
-> - Snowflake → `engines/snowflake.md`
-> - Ingestion Group 2 actions → `engines/ingestion.md` (may already be loaded)
->
-> Do NOT load engine files for engines not in scope. Grep
-> `references/scheduling.md` only if the user requests a schedule.
+> **Load (Phase 5):** Read ONLY the engine file(s) in scope — Spark/Glue/EMR →
+> `engines/spark.md` (+ `engines/glue.md` for Glue); Trino → `engines/trino.md`;
+> Snowflake → `engines/snowflake.md`; Group 2 actions → `engines/ingestion.md`
+> (may already be loaded). Do NOT load files for out-of-scope engines. Grep
+> `references/scheduling.md` only if a schedule is requested.
 
-Emit the concrete plan for the chosen scenario:
+Emit the concrete plan for the chosen scenario.
 
-**Operation order — always:**
-1. Group 2 (Ingestion fixes) — change writer config; takes effect on next run
-2. Group 1 (Table Layout) — compact → expire snapshots → remove orphans → rewrite manifests
-3. Group 3 (Maintenance) — schedule ongoing tasks
+**Operation order — always:** (1) Group 2 ingestion fixes (writer config; takes
+effect next run), then (2) Group 1 table layout (compact → expire snapshots →
+remove orphans → rewrite manifests), then (3) Group 3 maintenance (schedule
+ongoing tasks). Never remove orphans before expiring snapshots.
 
-Never remove orphans before expiring snapshots.
-
-**Commands** — exact, engine-specific, with parameters filled from the profile.
-Double-check engine capabilities in the loaded engine file (e.g. Trino does NOT
-support sort/z-order compaction or manifest clustering — use Spark for those).
-
-**Schedule** — from `references/scheduling.md`, matched to the write cadence
-and the chosen scenario.
-
-**Monitoring** — metadata-table threshold queries that should trigger the next run.
+Then provide: **Commands** (exact, engine-specific, parameters from the profile —
+verify capabilities in the loaded engine file; e.g. Trino does NOT support
+sort/z-order compaction or manifest clustering, use Spark for those);
+**Schedule** (from `references/scheduling.md`, matched to write cadence and
+scenario); and **Monitoring** (metadata-table threshold queries that trigger the
+next run).
 
 Restate the safety note before any destructive command, and get explicit approval
 before running anything that deletes files or rewrites data.
 
----
-
 ## Files in this skill
 
-**Base (always loaded):** `SKILL.md` only.
-
-**Loaded on demand during phases:**
-
-| File | Loaded when |
-|---|---|
-| `references/metadata-tables.md` | Phase 1 (grep specific sections) |
-| `references/workload-interview.md` | Phase 2a/2b (grep or read Part 2) |
-| `references/decision-framework.md` | Phase 3 (read in full) |
-| `references/scheduling.md` | Phase 5, only if schedule requested |
-| `engines/spark.md` | Phase 5, Spark or Glue/EMR engine |
-| `engines/glue.md` | Phase 5, Glue/EMR (supplement to spark.md) |
-| `engines/trino.md` | Phase 5, Trino engine |
-| `engines/snowflake.md` | Phase 5, Snowflake engine |
-| `engines/ingestion.md` | Phase 3/5, when Group 2 actions recommended |
-
-**Scripts (invoked directly, not loaded as context):**
-
-| Script | Purpose |
-|---|---|
-| `scripts/profile_table.py` | metadata → structured profile JSON |
-| `scripts/parse_query_log.py` | Spark event log / Trino queries → access profile |
-| `scripts/simulate.py` | scenario cost / performance model |
+Only `SKILL.md` loads up front. `references/` (metadata-tables, workload-interview,
+decision-framework, scheduling) and `engines/` (spark, glue, trino, snowflake,
+ingestion) load on demand at the `> Load (...)` callouts above. Scripts run
+directly, never into context: `profile_table.py`, `parse_query_log.py`,
+`simulate.py` under `scripts/`.
