@@ -13,8 +13,40 @@ them to confirm/correct. **(A)** = ask; metadata cannot know it.
 ## Part 1a — Ingestion pipeline identification (D then confirm)
 
 These questions identify the *writer* so Group 2 actions can be targeted
-correctly. Derive from the signal combinations in SKILL.md Phase 2a, then
-confirm with the user before prescribing a fix.
+correctly. First derive the raw signals, infer a likely writer from the signal
+pattern, then confirm with the user before prescribing a fix.
+
+**Ingestion signals to derive (Phase 2a):**
+
+| Signal | Source | Derived value |
+|---|---|---|
+| `write_cadence` | median inter-commit gap | `streaming` / `micro_batch` / `batch` |
+| `avg_added_file_mb` | `added-files-size` / `added-data-files` | number |
+| `thin_spread` | files/partition/commit ratio | bool |
+| `late_data` | event-time bounds vs `committed_at` | bool |
+| `eq_delete_pressure` | equality-delete records / data records | ratio |
+| `pos_delete_pressure` | position-delete files / data files | ratio |
+| `operation_mix` | `snapshots.operation` distribution | append / overwrite / merge counts |
+
+**Signal pattern → likely writer** (show the evidence, then ask to confirm):
+
+| Signal pattern | Likely writer |
+|---|---|
+| `streaming`, `avg_added_file_mb < 5`, `thin_spread = true` | Flink (default config) or Spark Structured Streaming, short trigger |
+| `streaming`, `avg_added_file_mb ≥ 50` | Flink with large checkpoint interval |
+| `micro_batch` (5s–5min commits) | Spark Structured Streaming |
+| `batch`, large commits, `late_data = false` | Spark batch ETL or dbt |
+| `batch`, small-to-medium commits, irregular intervals | Apache NiFi (`PutIcebergRecord`) or Beam batch |
+| `streaming`, small files, `thin_spread = false`, low parallelism | Apache Beam / Dataflow streaming with low `numShards` |
+| `operation_mix` dominated by full partition `overwrite`, regular cadence | Airbyte full-refresh or Fivetran managed sync |
+| high `overwrite` + `append` in `operation_mix` | CDC connector (Debezium, DeltaStreamer, Airbyte merge) |
+| `eq_delete_pressure > 0.05`, `merge` in `operation_mix` | MOR CDC — equality deletes accumulating |
+| `pos_delete_pressure > 0.2`, no equality deletes | COW CDC or MOR with position deletes |
+| `batch`, very large one-off commits then silence | AWS DMS migration or historical backfill |
+
+Confirmation prompt: *"Based on commit patterns (~Xs gaps, ~Y MB files, spread
+across N partitions), this looks like [writer type]. Is that right? What
+connector/framework writes to this table?"*
 
 | Question | How to derive | Confirm/ask |
 |---|---|---|
