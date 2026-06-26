@@ -47,10 +47,23 @@ for the full walkthrough and standalone script usage.
 
 ```bash
 cd skills/iceberg-optimizer
-python -m pytest tests/                    # unit tests
-python tests/skill_benchmark/run_benchmark.py   # scenario benchmark
+pip install pytest                              # only dependency, for the unit tests
+python -m pytest tests/                         # unit tests
+python tests/skill_benchmark/run_benchmark.py --all --judge   # scenario benchmark (needs the `claude` CLI)
 ```
 
-The scripts are standard-library only (`sqlglot` optional). The skill never
+The scripts themselves are standard-library only (`sqlglot` optional). The skill never
 connects to your warehouse — it operates on exported Iceberg metadata and query
 logs.
+
+## Contributing
+
+Issues and PRs welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, test,
+and benchmark instructions. This skill was authored with substantial help from an
+AI coding assistant and reviewed by a human maintainer; treat its output as
+directional advice and validate against your own tables before running anything
+destructive.
+
+## License
+
+Apache License 2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
