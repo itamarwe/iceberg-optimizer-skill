@@ -56,6 +56,14 @@ The scripts themselves are standard-library only (`sqlglot` optional). The skill
 connects to your warehouse — it operates on exported Iceberg metadata and query
 logs.
 
+## Contributing
+
+Issues and PRs welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, test,
+and benchmark instructions. This skill was authored with substantial help from an
+AI coding assistant and reviewed by a human maintainer; treat its output as
+directional advice and validate against your own tables before running anything
+destructive.
+
 ## License
 
 Apache License 2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).

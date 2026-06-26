@@ -1,12 +1,10 @@
-# Iceberg Optimizer Skill — Benchmark Report v6
+# Iceberg Optimizer Skill — Benchmark Report
 
 | | |
 |---|---|
-| **Branch** | `claude/happy-pascal-8hh5r4` |
-| **Skill commit** | `c97c07b` |
 | **Skill** | `skills/iceberg-optimizer/` |
 | **Harness** | `tests/skill_benchmark/run_benchmark.py` |
-| **Model** | Claude (claude CLI 2.1.191, default model) |
+| **Model** | Claude (claude CLI, default model) |
 | **Scenarios** | 22 |
 | **Date** | June 2026 |
 | **Overall** | **PASS — 22/22 scenarios, avg LLM-judge score 5.0/5** |
@@ -19,10 +17,10 @@ The **iceberg-optimizer** skill diagnoses an Apache Iceberg table and produces a
 ranked, cost-aware maintenance plan across three domains — table layout,
 ingestion pipeline, and ongoing maintenance.
 
-This v6 run re-benchmarks the skill on its current state (`c97c07b`) after the
-recent SKILL.md restructuring (single canonical skill, SKILL.md trimmed under
-200 lines). The result confirms **no regression**: all 22 scenarios pass with a
-perfect average LLM-judge score of **5.0/5**, matching v4/v5.
+Across the full 22-scenario suite, every scenario passes with a perfect average
+LLM-judge score of **5.0/5**. The scenarios are deliberately adversarial: each
+encodes a failure mode that a naïve "compact + sort + expire" runbook gets
+wrong, and the skill handles all of them.
 
 Two anomalies surfaced during the run, both in the **test harness**, not the
 skill:
@@ -37,17 +35,6 @@ skill:
 
 Both were addressed by hardening the harness (Section 5). The skill content
 itself required **no changes**.
-
-### Historical score progression
-
-| Version | Scenarios | Avg score | Notes |
-|---|---|---|---|
-| v1 | 5 | 4.8 / 5 | Initial suite |
-| v2 | 5 | 5.0 / 5 | |
-| v3 | 22 | 4.86 / 5 | Expanded suite; two cases below 5 |
-| v4 | 22 | 5.0 / 5 | Fixed `flink_micro_commit_scatter`, `late_arriving_data` |
-| v5 | 22 | 5.0 / 5 | Harness: LLM-judge as sole signal |
-| **v6** | **22** | **5.0 / 5** | **Re-run on `c97c07b`; harness hardened** |
 
 ---
 
@@ -151,33 +138,36 @@ runbook gets wrong. The skill handled every one:
 
 ---
 
-## 5. Harness hardening (this run)
+## 5. Harness hardening
 
-The crash on scenario 22 exposed two robustness gaps in
-`run_benchmark.py`. Both are fixed in this commit; the **skill files are
-unchanged**.
+The crash on scenario 22 exposed two robustness gaps in `run_benchmark.py`, both
+now fixed. The **skill files are unchanged**.
 
-1. **A flaky judge/answer call no longer aborts the run.** `run_scenario` now
-   wraps both the answer call and the judge call in `try/except`. On failure it
+1. **A flaky judge/answer call no longer aborts the run.** `run_scenario` wraps
+   both the answer call and the judge call in `try/except`. On failure it
    records `score: 0` for that scenario and continues, so one transient CLI
-   error can't discard 21 completed results.
+   error can't discard already-completed results.
 
-2. **Results are written incrementally.** `--output-json` is now flushed after
-   every scenario, so a late failure leaves a partial-but-complete JSON of
-   everything finished so far instead of nothing.
+2. **Results are written incrementally.** `--output-json` is flushed after every
+   scenario, so a late failure leaves a partial-but-complete JSON of everything
+   finished so far instead of nothing.
 
-These are test-infrastructure changes only — they make the benchmark
-trustworthy under transient CLI failures without altering what is measured.
+These are test-infrastructure changes only — they make the benchmark trustworthy
+under transient CLI failures without altering what is measured.
 
 ---
 
 ## 6. Conclusion
 
-The iceberg-optimizer skill at `c97c07b` scores **22/22, avg 5.0/5** — no
-regression from the recent restructuring, and no skill fixes warranted. The only
-changes in this commit harden the benchmark harness against transient CLI
-failures.
+The iceberg-optimizer skill scores **22/22, avg 5.0/5** across the full suite.
+No skill fixes were warranted; the only changes hardened the benchmark harness
+against transient CLI failures.
 
-> **Note:** This report is plain Markdown and renders without a build step.
-> Earlier versions (v1–v5) were kept as LaTeX/PDF; from v6 the report is Markdown
-> so it stays diffable and reviewable directly in the repo.
+## Reproducing
+
+```bash
+cd skills/iceberg-optimizer
+pip install pytest                              # for the unit tests
+python -m pytest tests/                         # unit tests
+python tests/skill_benchmark/run_benchmark.py --all --judge   # full suite (needs the `claude` CLI)
+```

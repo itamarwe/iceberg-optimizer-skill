@@ -153,7 +153,7 @@ Build candidate scenarios and run:
 
 ```
 scripts/simulate.py --profile profile.json --workload workload.json \
-    [--assumptions a.json] --priority <storage|query_cost|latency|maintenance_cost>
+    [--assumptions a.json] --priority <total|storage|query_cost|latency|maintenance_cost>
 ```
 
 It compares **Do-nothing / Light / Targeted-sort / Aggressive / Storage-min**
