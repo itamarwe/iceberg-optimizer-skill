@@ -178,6 +178,6 @@ regression from the recent restructuring, and no skill fixes warranted. The only
 changes in this commit harden the benchmark harness against transient CLI
 failures.
 
-> **Note:** No LaTeX toolchain is available in this environment, so the
-> historical `benchmark_report.pdf` (v5) was not rebuilt. This Markdown report is
-> the v6 artifact and renders without a build step.
+> **Note:** This report is plain Markdown and renders without a build step.
+> Earlier versions (v1–v5) were kept as LaTeX/PDF; from v6 the report is Markdown
+> so it stays diffable and reviewable directly in the repo.
