@@ -95,7 +95,8 @@ Part 1a — also confirm `distribution_mode`, `ingestion_write_mode` (mor/cow), 
 
 ```
 scripts/parse_query_log.py --table catalog.schema.table --out workload.json \
-    [--spark-eventlog LOG] [--trino-queries QUERIES] [--explain-analyze explain.txt]
+    [--spark-eventlog LOG] [--trino-queries QUERIES] [--explain-analyze explain.txt] \
+    [--scan-report SCAN_REPORTS]
 ```
 
 Extracts per-table ranked WHERE-clause columns, range vs equality predicates,
@@ -103,6 +104,9 @@ partition-pruning effectiveness, selectivity (rows scanned ÷ returned), and
 query frequency from Spark event logs, Trino query exports/event-listener logs,
 or Trino `EXPLAIN ANALYZE` (run `--help` for the fields each reads). If none are
 available, ask the user to run `EXPLAIN ANALYZE` on 3–5 representative queries.
+If the user can supply Iceberg **ScanReport** JSON (`--scan-report`), it also
+derives measured `manifest_prune_rate` — the only direct signal for manifest
+clustering quality (see `references/metadata-tables.md`).
 
 #### 2b — Interview for intent
 

@@ -18,6 +18,7 @@ from parse_query_log import (
     analyze_sql_statements,
     analyze_spark_eventlog,
     parse_explain_analyze_file,
+    parse_scan_reports,
     table_aliases,
     parse_bytes_str,
 )
@@ -378,3 +379,81 @@ def test_partition_granularity_mismatch_sql():
     # dominant is range (appears in 2 queries as range, 1 as equality)
     # (exact counts depend on parser, but event_date must be identified)
     assert col_map["event_date"]["dominant"] in ("range", "equality")
+
+
+# ---------------------------------------------------------------------------
+# parse_scan_reports — measured manifest pruning from Iceberg ScanReport JSON
+# ---------------------------------------------------------------------------
+
+def _write_json(obj):
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        f.write(json.dumps(obj))
+        return f.name
+
+
+def _counter(v):
+    return {"unit": "count", "value": v}
+
+
+def test_scan_report_manifest_scatter():
+    """Low skip rate across reports → low manifest_prune_rate; planning ms from the timer."""
+    reports = [
+        {"table-name": "prod.analytics.events", "metrics": {
+            "total-data-manifests": _counter(400),
+            "scanned-data-manifests": _counter(380),
+            "skipped-data-manifests": _counter(20),
+            "result-data-files": _counter(120),
+            "skipped-data-files": _counter(60),
+            "total-planning-duration": {"count": 1, "time-unit": "nanoseconds",
+                                        "total-duration": 50_000_000},
+        }},
+        {"table-name": "prod.analytics.events", "metrics": {
+            "scanned-data-manifests": _counter(395),
+            "skipped-data-manifests": _counter(5),
+            "result-data-files": _counter(90),
+            "skipped-data-files": _counter(40),
+        }},
+    ]
+    path = _write_json(reports)
+    try:
+        mp = parse_scan_reports(path, table_aliases("prod.analytics.events"))
+    finally:
+        os.unlink(path)
+
+    assert mp["scan_reports_analyzed"] == 2
+    assert mp["manifests_scanned"] == 775
+    assert mp["manifests_skipped"] == 25
+    assert mp["manifest_prune_rate"] == round(25 / 800, 3)   # 0.031 — scatter
+    assert mp["data_file_prune_rate"] == round(100 / 310, 3)
+    assert mp["median_planning_ms"] == 50.0
+
+
+def test_scan_report_filters_other_tables():
+    """Reports for a different table must not leak into the aggregate."""
+    reports = [
+        {"table-name": "prod.analytics.events", "metrics": {
+            "scanned-data-manifests": _counter(10),
+            "skipped-data-manifests": _counter(90)}},
+        {"table-name": "other.db.tbl", "metrics": {
+            "scanned-data-manifests": _counter(100),
+            "skipped-data-manifests": _counter(0)}},
+    ]
+    path = _write_json(reports)
+    try:
+        mp = parse_scan_reports(path, table_aliases("prod.analytics.events"))
+    finally:
+        os.unlink(path)
+
+    assert mp["scan_reports_analyzed"] == 1
+    assert mp["manifest_prune_rate"] == 0.9   # only the matching table counted
+
+
+def test_scan_report_none_when_no_metrics():
+    """A file with no manifest counters yields None (no manifest_pruning block)."""
+    path = _write_json([{"table-name": "prod.analytics.events", "metrics": {}}])
+    try:
+        mp = parse_scan_reports(path, table_aliases("prod.analytics.events"))
+    finally:
+        os.unlink(path)
+
+    assert mp is None
