@@ -43,6 +43,28 @@ a maintenance schedule, or decide whether it's even worth compacting.
 See [`skills/iceberg-optimizer/README.md`](skills/iceberg-optimizer/README.md)
 for the full walkthrough and standalone script usage.
 
+## How this compares to other Iceberg skills
+
+Several good Iceberg skills exist; they solve different problems. This one is an
+**optimization decision engine** — it reads a specific table's real metadata and
+query workload and produces a cost-ranked, table-specific plan (up to and
+including *do nothing*), backed by runnable scripts and a scenario benchmark.
+
+|  | **This skill** | **Advisory / best-practice skills** | **Platform-native skills** (e.g. Databricks) |
+|---|---|---|---|
+| Goal | Decide *whether & how* to optimize *this* table | Answer Iceberg questions correctly | Operate Iceberg inside one platform |
+| Profiles the real table + workload | ✅ | ❌ | ❌ |
+| Cost simulation across axes | ✅ | ❌ | ❌ (platform auto-manages) |
+| Runnable scripts, not just prose | ✅ | ❌ | ❌ |
+| Scenario benchmark validating advice | ✅ | ❌ | ❌ |
+| Breadth of catalogs / format-spec depth | focused | often wider | platform-scoped |
+
+In short: advisory skills encode broad correctness, and platform skills encode
+correct in-platform operations; this skill is the one that looks at *your*
+table's numbers and tells you what it specifically needs — and proves the
+recommendation against a benchmark suite. The two kinds are complementary: pair
+this with a platform skill when you live inside one warehouse.
+
 ## Development
 
 ```bash
