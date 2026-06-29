@@ -52,9 +52,14 @@ python -m pytest tests/                         # unit tests
 python tests/skill_benchmark/run_benchmark.py --all --judge   # scenario benchmark (needs the `claude` CLI)
 ```
 
-The scripts themselves are standard-library only (`sqlglot` optional). The skill never
-connects to your warehouse — it operates on exported Iceberg metadata and query
-logs.
+The scripts themselves are standard-library only (`sqlglot` optional) and never open
+a connection — they operate on exported Iceberg metadata and logs. The **skill** can
+connect when you let it: in **Direct mode** it runs the diagnostic queries against
+your catalog itself (`trino` / `spark-sql` / `beeline`, or `TRINO_URL` / `SPARK_HOME`
+/ `DATABRICKS_HOST` / `SNOWFLAKE_ACCOUNT`); in **Exported mode** it reads files you
+provide; otherwise it hands you queries to paste back. Either way it stays
+**read-only until you approve a plan** — it never runs a destructive operation on its
+own.
 
 ## Contributing
 

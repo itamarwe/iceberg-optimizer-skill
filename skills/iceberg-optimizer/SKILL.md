@@ -49,8 +49,8 @@ Establish (ask if not stated): **which table(s)** (`catalog.schema.table`) and
 **Detect access mode** (in order): **Direct** — an Iceberg-capable SQL CLI is
 reachable (`trino`, `spark-sql`, `beeline`, or env `TRINO_URL` / `SPARK_HOME` /
 `DATABRICKS_HOST` / `SNOWFLAKE_ACCOUNT`); the skill queries autonomously.
-**Exported** — the user provided files (profile.json / metadata CSVs); the skill
-reads them. **Ask-User** (default) — no access; ask *"Can I run SQL against your
+**Exported** — the user provided files (profile.json / metadata CSVs / query logs /
+writer config or ingestion logs); the skill reads them. **Ask-User** (default) — no access; ask *"Can I run SQL against your
 catalog, or should I give you queries to paste back?"* and the user pastes output.
 
 > **Load (Phase 0):** Nothing beyond SKILL.md. Detect mode and engine only.
@@ -89,7 +89,10 @@ pressures, `operation_mix`), infer the likely writer from the signal pattern,
 and confirm with the user. The signal definitions, the signal-pattern→writer
 table, and the confirmation prompts all live in `references/workload-interview.md`
 Part 1a — also confirm `distribution_mode`, `ingestion_write_mode` (mor/cow), and
-`checkpoint_interval_secs` there, since Group 2 fixes are writer-specific.
+`checkpoint_interval_secs` there, since Group 2 fixes are writer-specific. **If the
+writer's config or logs are accessible** (provided, or reachable in Direct mode),
+read them to derive these signals as fact rather than inferring from metadata — Part
+1a's writer-source table lists what to read per writer.
 
 **Access pattern signals:**
 

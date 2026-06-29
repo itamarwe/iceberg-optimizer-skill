@@ -55,10 +55,13 @@ python scripts/simulate.py --profile profile.json --workload workload.json \
     --queries-per-month 50000 --priority total
 ```
 
-Inputs are exports of the table's Iceberg metadata tables and query history — the
-skill never connects to your warehouse. The simulator's cost model is transparent
-and every assumption is printed and overridable via `--assumptions`; treat its
-output as directional, not a benchmark.
+These scripts read exported Iceberg metadata, query history, and (when available)
+ingestion/writer logs — they never open a connection themselves. The **skill**,
+however, can run the underlying queries directly against your catalog in **Direct
+mode** (`trino` / `spark-sql` / `beeline`), read provided files in **Exported mode**,
+or hand you queries to paste back — staying read-only until you approve a plan. The
+simulator's cost model is transparent and every assumption is printed and overridable
+via `--assumptions`; treat its output as directional, not a benchmark.
 
 ## Layout
 
