@@ -2,8 +2,9 @@
 """Reconstruct the read access pattern for an Iceberg table from query logs.
 
 Input modes (one SQL source required, --explain-analyze is supplementary):
-  --trino-queries FILE   JSON/CSV export of system.runtime.queries (or any table
-                         with a `query` column; optional input_rows/output_rows/
+  --trino-queries FILE   JSON/CSV query-history export with a `query` column
+                         (Trino system.runtime.queries, Snowflake query history,
+                         or any similar table; optional input_rows/output_rows/
                          input_bytes/physical_input_bytes columns enable selectivity
                          and scan stats). Also accepts Trino JSON event-listener logs
                          (queryCompletedEvent envelope auto-detected; physicalInputDataSize
@@ -18,9 +19,19 @@ Input modes (one SQL source required, --explain-analyze is supplementary):
                           lines from Trino EXPLAIN ANALYZE output and uses them as
                           measured median_bytes_scanned if not already set by the log.
 
+  --scan-report FILE      Iceberg ScanReport JSON (supplementary). Aggregates the
+                          manifest- and file-level pruning the planner actually
+                          achieved — `scanned-data-manifests` / `skipped-data-manifests`
+                          — into a `manifest_pruning` block (manifest_prune_rate).
+                          Query logs do NOT carry this; it comes from an Iceberg
+                          MetricsReporter (catalog property metrics-reporter-impl) or
+                          REST-catalog scan-report telemetry. Accepts a JSON array,
+                          NDJSON, or a single report. See references/metadata-tables.md.
+
 Emits workload.json: ranked WHERE-clause columns, predicate type per column
 (equality vs range → sort vs z-order vs bloom hints), join columns, query
-frequency, selectivity, and (Spark) partition-pruning effectiveness.
+frequency, selectivity, (Spark) partition-pruning effectiveness, and — when a
+scan report is supplied — measured manifest-pruning effectiveness.
 
 When median_bytes_scanned is present in workload.json, simulate.py uses it as
 the real baseline rather than estimating from total_gb × (1 - prune_rate).
@@ -403,6 +414,93 @@ def parse_explain_analyze_file(path):
     return bytes_list
 
 
+# ---------- Iceberg ScanReport extraction ----------
+
+def _metric_value(metrics, key):
+    """Pull a numeric value from one ScanMetricsResult entry, tolerant of shape.
+
+    Counters serialize as {"unit": "count", "value": N}; the planning timer as
+    {"count": N, "time-unit": "nanoseconds", "total-duration": N}. Some reporters
+    emit the bare number. Return None if the key is absent or unreadable.
+    """
+    v = metrics.get(key)
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return v
+    if isinstance(v, dict):
+        for k in ("value", "total-duration", "count"):
+            if isinstance(v.get(k), (int, float)):
+                return v[k]
+    return None
+
+
+def parse_scan_reports(path, aliases):
+    """Aggregate manifest- and file-level pruning from Iceberg ScanReport JSON.
+
+    Each ScanReport carries its counters under a `metrics` object with kebab-case
+    keys (`scanned-data-manifests`, `skipped-data-manifests`, `total-data-manifests`,
+    `result-data-files`, `skipped-data-files`, `total-planning-duration`). Reports are
+    filtered to this table by their `table-name` field when present. Returns a
+    `manifest_pruning` summary, or None if no usable report is found.
+
+    manifest_prune_rate = manifests_skipped / (manifests_scanned + manifests_skipped):
+    high means the planner skipped most manifests for these queries (well-clustered);
+    low — when queries DO carry selective partition filters — points at manifest
+    scatter that `rewrite_manifests(sort_by)` clustering would fix.
+    """
+    rows = load_rows(path)
+    scanned = skipped = total_man = skipped_files = result_files = 0
+    plan_ns = []
+    n = 0
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        metrics = r.get("metrics")
+        if not isinstance(metrics, dict):
+            # tolerate a bare metrics map or a `scan-metrics` wrapper
+            sm = r.get("scan-metrics")
+            metrics = sm if isinstance(sm, dict) else r
+        tname = r.get("table-name") or r.get("tableName")
+        if tname:
+            tl = str(tname).lower()
+            if not (tl in aliases or tl.split(".")[-1] in aliases
+                    or any(a in tl for a in aliases)):
+                continue
+        sm_v = _metric_value(metrics, "scanned-data-manifests")
+        km_v = _metric_value(metrics, "skipped-data-manifests")
+        if sm_v is None and km_v is None:
+            continue
+        n += 1
+        scanned += int(sm_v or 0)
+        skipped += int(km_v or 0)
+        total_man += int(_metric_value(metrics, "total-data-manifests") or 0)
+        skipped_files += int(_metric_value(metrics, "skipped-data-files") or 0)
+        result_files += int(_metric_value(metrics, "result-data-files") or 0)
+        pd = _metric_value(metrics, "total-planning-duration")
+        if pd:
+            plan_ns.append(pd)
+
+    if n == 0:
+        return None
+
+    man_total = scanned + skipped
+    out = {
+        "scan_reports_analyzed": n,
+        "manifests_scanned": scanned,
+        "manifests_skipped": skipped,
+        "manifest_prune_rate": round(skipped / man_total, 3) if man_total else None,
+        "source": "iceberg-scan-report",
+    }
+    file_total = skipped_files + result_files
+    if file_total:
+        out["data_file_prune_rate"] = round(skipped_files / file_total, 3)
+    if plan_ns:
+        # total-planning-duration is reported in nanoseconds (Iceberg default)
+        out["median_planning_ms"] = round(stats.median(plan_ns) / 1e6, 1)
+    return out
+
+
 # ---------- CLI ----------
 
 def main(argv=None):
@@ -411,7 +509,7 @@ def main(argv=None):
     ap.add_argument("--table", required=True, help="fully-qualified table, e.g. cat.db.tbl")
     src = ap.add_mutually_exclusive_group(required=False)
     src.add_argument("--trino-queries",
-                     help="JSON/CSV from system.runtime.queries, or Trino JSON event-listener log")
+                     help="JSON/CSV query history with a query column, or Trino JSON event-listener log")
     src.add_argument("--sql-file", help="Raw SQL file; statements delimited by ';'")
     src.add_argument("--spark-eventlog", help="Spark event-log NDJSON")
     ap.add_argument("--query-column", default="query",
@@ -419,12 +517,16 @@ def main(argv=None):
     ap.add_argument("--explain-analyze", metavar="FILE",
                     help="EXPLAIN ANALYZE text output file; extracts measured "
                          "Physical Input Data Size (supplementary, can combine with any source)")
+    ap.add_argument("--scan-report", metavar="FILE",
+                    help="Iceberg ScanReport JSON (supplementary); aggregates measured "
+                         "manifest pruning into a manifest_pruning block")
     ap.add_argument("--out", default="-")
     args = ap.parse_args(argv)
 
-    if not any([args.trino_queries, args.sql_file, args.spark_eventlog, args.explain_analyze]):
+    if not any([args.trino_queries, args.sql_file, args.spark_eventlog,
+                args.explain_analyze, args.scan_report]):
         ap.error("provide at least one of --trino-queries, --sql-file, "
-                 "--spark-eventlog, or --explain-analyze")
+                 "--spark-eventlog, --explain-analyze, or --scan-report")
 
     aliases = table_aliases(args.table)
     result = {"table": args.table}
@@ -459,6 +561,12 @@ def main(argv=None):
                 sel["sample_count"] = n
                 result["selectivity"] = sel
             result["explain_analyze_samples"] = len(bytes_list)
+
+    # Supplementary: Iceberg ScanReport → measured manifest-pruning effectiveness
+    if args.scan_report:
+        mp = parse_scan_reports(args.scan_report, aliases)
+        if mp:
+            result["manifest_pruning"] = mp
 
     text = json.dumps(result, indent=2)
     if args.out == "-":
