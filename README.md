@@ -30,21 +30,26 @@ skills/iceberg-optimizer/      the skill (this is what you install)
 
 ## Install
 
-```bash
-# user-level via npx (available in every project)
-npx github:itamarwe/iceberg-optimizer-skill install
+The installer is published as
+[`iceberg-optimizer-skill`](https://www.npmjs.com/package/iceberg-optimizer-skill)
+on npm.
 
-# after npm publication, the same install can be shortened to:
+```bash
+# user-level via npm (available in every project)
 npx iceberg-optimizer-skill install
 
-# project-level (scoped to one repo)
-cp -r skills/iceberg-optimizer <your-repo>/.claude/skills/
-
-# or project-level via npx
-npx github:itamarwe/iceberg-optimizer-skill install --target <your-repo>/.claude/skills
+# project-level via npm (scoped to one repo)
+npx iceberg-optimizer-skill install --target <your-repo>/.claude/skills
 
 # Codex user-level install
-npx github:itamarwe/iceberg-optimizer-skill install --codex
+npx iceberg-optimizer-skill install --codex
+
+# install directly from GitHub for unreleased branches/forks
+npx github:itamarwe/iceberg-optimizer-skill install
+npx github:itamarwe/iceberg-optimizer-skill#main install
+
+# manual project-level fallback from a local clone
+cp -r skills/iceberg-optimizer <your-repo>/.claude/skills/
 
 # manual user-level fallback from a local clone
 cp -r skills/iceberg-optimizer ~/.claude/skills/
