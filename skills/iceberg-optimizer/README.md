@@ -22,8 +22,8 @@ asks before it decides, and simulates before it recommends.**
    cost, driven by the table's real numbers, so you optimize for the axis you
    care about.
 5. **Plan** as a Markdown report with a data-backed action summary, exact
-   engine-specific commands (Spark, Trino, AWS Glue/EMR, Snowflake, Flink /
-   Kafka Connect), monitoring, and a schedule.
+   engine-specific commands (Spark, Trino, DuckDB, AWS Glue/EMR, Snowflake,
+   Flink / Kafka Connect), monitoring, and a schedule.
 
 ## Install
 
@@ -107,6 +107,12 @@ Docker Spark/Trino/Iceberg REST/MinIO stack:
 tests/integration/smoke_input_helpers_docker.sh
 ```
 
+DuckDB is supported as a lightweight Iceberg access engine. It can inspect a
+metadata path with `iceberg_scan`/`iceberg_metadata` or attach an Iceberg REST
+catalog for richer catalog operations. DuckDB metadata exports may not include
+file sizes; in that case the profiler marks file-size metrics as unavailable
+instead of inferring small-file pressure.
+
 ## Layout
 
 ```
@@ -119,8 +125,8 @@ references/report-sample.md       sample report to copy structurally
 references/procedures.md          routing index → per-engine procedures
 references/scheduling.md          archetype→schedule matrix + triggers
 references/testing.md             how to validate recommendations safely
-engines/                          per-engine syntax: spark · trino · glue ·
-                                  snowflake · ingestion
+engines/                          per-engine syntax: spark · trino · duckdb ·
+                                  glue · snowflake · ingestion
 scripts/                          profile_table · parse_query_log · simulate
                                   spark_input · trino_input · glue_input ·
                                   snowflake_input

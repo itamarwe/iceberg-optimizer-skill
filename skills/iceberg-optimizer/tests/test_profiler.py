@@ -198,6 +198,36 @@ def test_cold_archive_profile_files():
     assert fp["needs_binpack"] is False
 
 
+def test_duckdb_metadata_without_file_sizes_does_not_infer_small_files():
+    """DuckDB iceberg_metadata exposes file rows but may omit file_size_in_bytes."""
+    rows = [
+        {"content": 0, "file_path": "s3://bucket/tbl/data-1.parquet", "record_count": 10_000},
+        {"content": 0, "file_path": "s3://bucket/tbl/data-2.parquet", "record_count": 12_000},
+    ]
+
+    fp = profile_files(rows, target_mb=256)
+
+    assert fp["data_files"] == 2
+    assert fp["data_records"] == 22_000
+    assert fp["size_metrics_available"] is False
+    assert "needs_binpack" not in fp
+    assert "files_under_64mb_pct" not in fp
+
+
+def test_duckdb_snapshots_timestamp_ms_sets_cadence():
+    base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    rows = [
+        {"snapshot_id": 1, "timestamp_ms": int(base.timestamp() * 1000)},
+        {"snapshot_id": 2, "timestamp_ms": int((base + timedelta(minutes=5)).timestamp() * 1000)},
+    ]
+
+    sp = profile_snapshots(rows)
+
+    assert sp["snapshot_count"] == 2
+    assert sp["write_cadence"]["median_gap_sec"] == pytest.approx(300)
+    assert sp["write_cadence"]["class"] == "micro-batch"
+
+
 def test_cold_archive_flags():
     files_rows, snap_rows = make_cold_archive_rows()
     profile = build_profile(files_rows, snap_rows)

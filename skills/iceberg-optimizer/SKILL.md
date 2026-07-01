@@ -8,7 +8,7 @@ description: >-
   rewrite). Use when asked to optimize, tune, speed up, shrink the cost of,
   clean up, repartition, compact, or design a maintenance schedule for an
   Iceberg table, or to decide whether a table is even worth optimizing.
-  Engines: Spark, Trino, AWS Glue/EMR, Snowflake, Flink / Kafka Connect.
+  Engines: Spark, Trino, DuckDB, AWS Glue/EMR, Snowflake, Flink / Kafka Connect.
   Adapts to Direct mode (live catalog access), Ask-User mode (user runs queries),
   or Exported mode (pre-exported metadata files).
 ---
@@ -40,15 +40,15 @@ below opens with a `> Load (...)` callout naming exactly what to read.
 ### Phase 0 — Scope & safety
 
 Establish (ask if not stated): **which table(s)** (`catalog.schema.table`) and
-**which engine** (Spark / Trino / Glue/EMR / Snowflake / Flink — syntax differs).
+**which engine** (Spark / Trino / DuckDB / Glue/EMR / Snowflake / Flink — syntax differs).
 
 **Read-only until Phase 5.** Never run `expire_snapshots`, `remove_orphan_files`,
 `rewrite_data_files`, or any `ALTER TABLE` until a specific plan is approved —
 `remove_orphan_files` and `expire_snapshots` *delete files*; treat as destructive.
 
 **Detect access mode** (in order): **Direct** — an Iceberg-capable SQL CLI is
-reachable (`trino`, `spark-sql`, `beeline`, or env `TRINO_URL` / `SPARK_HOME` /
-`DATABRICKS_HOST` / `SNOWFLAKE_ACCOUNT`); the skill queries autonomously.
+reachable (`trino`, `spark-sql`, `duckdb`, `beeline`, or env `TRINO_URL` /
+`SPARK_HOME` / `DATABRICKS_HOST` / `SNOWFLAKE_ACCOUNT`); the skill queries autonomously.
 **Exported** — the user provided files (profile.json / metadata CSVs / query logs /
 writer config or ingestion logs); the skill reads them. **Ask-User** (default) — no access; ask *"Can I run SQL against your
 catalog, or should I give you queries to paste back?"* and the user pastes output.
@@ -59,7 +59,8 @@ catalog, or should I give you queries to paste back?"* and the user pastes outpu
 
 > **Load (Phase 1):** `Grep references/metadata-tables.md` for only the signal
 > sections you need (e.g. `$files`, `$snapshots`, `$manifests`). Do NOT read the
-> full file.
+> full file. If the engine is DuckDB, read `engines/duckdb.md` instead of
+> translating Spark/Trino metadata-table syntax.
 
 Read the table's physical state. Run/request the diagnostic queries from
 `references/metadata-tables.md` (Direct/Ask-User), or use the provided files
@@ -192,7 +193,7 @@ a post-compaction measurement via `--assumptions '{"scan_fraction":
 
 > **Load (Phase 5):** Read ONLY the engine file(s) in scope — Spark/Glue/EMR →
 > `engines/spark.md` (+ `engines/glue.md` for Glue); Trino → `engines/trino.md`;
-> Snowflake → `engines/snowflake.md`; Group 2 actions → `engines/ingestion.md`
+> DuckDB → `engines/duckdb.md`; Snowflake → `engines/snowflake.md`; Group 2 actions → `engines/ingestion.md`
 > (may already be loaded). Do NOT load files for out-of-scope engines. Grep
 > `references/scheduling.md` only if a schedule is requested. Read
 > `references/reporting.md` before writing the final recommendation report.
@@ -228,7 +229,7 @@ before running anything that deletes files or rewrites data.
 ## Files in this skill
 
 Only `SKILL.md` loads up front. `references/` (metadata-tables, workload-interview,
-decision-framework, reporting, scheduling) and `engines/` (spark, glue, trino, snowflake,
+decision-framework, reporting, scheduling) and `engines/` (spark, glue, trino, duckdb, snowflake,
 ingestion) load on demand at the `> Load (...)` callouts above. Scripts run
 directly, never into context: `spark_input.py`, `trino_input.py`,
 `glue_input.py`, `snowflake_input.py`, `profile_table.py`,

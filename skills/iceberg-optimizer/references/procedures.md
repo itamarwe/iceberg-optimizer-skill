@@ -19,23 +19,25 @@ compact → expire snapshots → remove orphans → rewrite manifests
 | Spark (standalone, Databricks, EMR, local) | `engines/spark.md` |
 | AWS Glue / Amazon EMR | `engines/glue.md` (supplements `engines/spark.md`) |
 | Trino | `engines/trino.md` |
+| DuckDB | `engines/duckdb.md` |
 | Snowflake (managed or external) | `engines/snowflake.md` |
 | Flink / Kafka Connect (write-time only) | `engines/ingestion.md` |
 
 ## Capability matrix
 
-| Operation | Spark | Trino | Snowflake (managed) | Snowflake (external) |
-|---|---|---|---|---|
-| Bin-pack compaction | ✓ | ✓ | Auto + COMPACT | ✗ (use Spark) |
-| Sort compaction | ✓ | ✗ | ✗ | ✗ |
-| Z-order compaction | ✓ | ✗ | ✗ | ✗ |
-| Expire snapshots | ✓ | ✓ | ✓ | ✗ (use Spark) |
-| Remove orphan files | ✓ | ✓ | Auto | ✗ (use Spark) |
-| Rewrite manifests (consolidate) | ✓ | ✓ | — | ✗ |
-| Rewrite manifests (cluster by partition) | ✓ | ✗ | — | ✗ |
-| Rewrite position delete files | ✓ | ✗ | — | ✗ |
-| Format version upgrade | ✓ | ✓ | ✓ | ✗ |
-| Write-time sort order | ✓ | ✓ | Clustering key | — |
-| GDPR row deletion | ✓ | ✓ | ✓ | Run in Spark; REFRESH |
+| Operation | Spark | Trino | DuckDB | Snowflake (managed) | Snowflake (external) |
+|---|---|---|---|---|---|
+| Profile / inspect metadata | ✓ | ✓ | ✓ | Partial | Read-only metadata cache |
+| Bin-pack compaction | ✓ | ✓ | ✗ | Auto + COMPACT | ✗ (use Spark) |
+| Sort compaction | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Z-order compaction | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Expire snapshots | ✓ | ✓ | ✗ | ✓ | ✗ (use Spark) |
+| Remove orphan files | ✓ | ✓ | ✗ | Auto | ✗ (use Spark) |
+| Rewrite manifests (consolidate) | ✓ | ✓ | ✗ | — | ✗ |
+| Rewrite manifests (cluster by partition) | ✓ | ✗ | ✗ | — | ✗ |
+| Rewrite position delete files | ✓ | ✗ | ✗ | — | ✗ |
+| Format version upgrade | ✓ | ✓ | Via `ALTER TABLE` on REST catalog | ✓ | ✗ |
+| Write-time sort order | ✓ | ✓ | Table properties / DDL only | Clustering key | — |
+| GDPR row deletion | ✓ | ✓ | `DELETE`/`MERGE` on REST catalog, then use maintenance engine for expiry/orphans | ✓ | Run in Spark; REFRESH |
 
 Load the specific engine file from `engines/` for the exact syntax.

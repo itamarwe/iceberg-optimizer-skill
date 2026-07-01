@@ -249,6 +249,42 @@ def gen_snapshot_bloat_only():
     write_fixture("snapshot_bloat_only", profile, workload, sim)
 
 
+def gen_duckdb_lightweight_profile():
+    files = [
+        {"content": 0, "file_size_in_bytes": 256 * MB, "record_count": 5_000_000}
+        for _ in range(40)
+    ]
+    base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    snaps = [
+        {
+            "operation": "append",
+            "committed_at": _iso(base + timedelta(hours=i)),
+            "summary": {"added-data-files": "1", "added-files-size": str(256 * MB),
+                        "changed-partition-count": "1"},
+        }
+        for i in range(120)
+    ]
+    profile = build_profile(files, snaps)
+    profile["snapshots"]["profile_source"] = "duckdb iceberg_snapshots and iceberg_metadata"
+    workload = {
+        "table": "lakehouse.analytics.events",
+        "metadata_engine": "duckdb",
+        "matched_query_count": 300,
+        "filter_columns": [
+            {"column": "tenant_id", "count": 285, "share": 0.95, "dominant": "equality"},
+            {"column": "event_date", "count": 80, "share": 0.267, "dominant": "range"},
+        ],
+        "equality_cols": ["tenant_id"],
+        "range_cols": ["event_date"],
+        "partition_prune_rate": 0.0,
+        "selectivity": {"median_bytes_scanned": int(10 * GB),
+                        "source": "duckdb representative query profile"},
+        "parser": "sqlglot",
+    }
+    sim = run_simulate(profile, workload, qpm=600, priority="query_cost")
+    write_fixture("duckdb_lightweight_profile", profile, workload, sim)
+
+
 if __name__ == "__main__":
     print("Generating fixtures...")
     gen_cold_archive()
@@ -256,4 +292,5 @@ if __name__ == "__main__":
     gen_gdpr_deletes()
     gen_partition_misalignment()
     gen_snapshot_bloat_only()
+    gen_duckdb_lightweight_profile()
     print("Done.")

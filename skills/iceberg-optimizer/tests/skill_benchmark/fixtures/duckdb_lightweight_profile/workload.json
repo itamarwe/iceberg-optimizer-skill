@@ -1,0 +1,31 @@
+{
+  "table": "lakehouse.analytics.events",
+  "metadata_engine": "duckdb",
+  "matched_query_count": 300,
+  "filter_columns": [
+    {
+      "column": "tenant_id",
+      "count": 285,
+      "share": 0.95,
+      "dominant": "equality"
+    },
+    {
+      "column": "event_date",
+      "count": 80,
+      "share": 0.267,
+      "dominant": "range"
+    }
+  ],
+  "equality_cols": [
+    "tenant_id"
+  ],
+  "range_cols": [
+    "event_date"
+  ],
+  "partition_prune_rate": 0.0,
+  "selectivity": {
+    "median_bytes_scanned": 10737418240,
+    "source": "duckdb representative query profile"
+  },
+  "parser": "sqlglot"
+}
