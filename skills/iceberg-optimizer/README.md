@@ -26,11 +26,23 @@ asks before it decides, and simulates before it recommends.**
 
 ## Install
 
-Copy the skill into your Claude Code skills directory:
+Install the skill into your Claude Code skills directory:
 
 ```bash
-cp -r skills/iceberg-optimizer ~/.claude/skills/        # user-level, or
-cp -r skills/iceberg-optimizer <your-repo>/.claude/skills/   # project-level
+# user-level, directly from GitHub
+npx github:itamarwe/iceberg-optimizer-skill install
+
+# after npm publication
+npx iceberg-optimizer-skill install
+
+# project-level
+npx github:itamarwe/iceberg-optimizer-skill install --target <your-repo>/.claude/skills
+
+# Codex user-level install
+npx github:itamarwe/iceberg-optimizer-skill install --codex
+
+# manual fallback
+cp -r skills/iceberg-optimizer ~/.claude/skills/
 ```
 
 Then ask Claude Code to "optimize my Iceberg table" (or profile it, design a

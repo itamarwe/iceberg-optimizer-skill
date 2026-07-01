@@ -31,11 +31,23 @@ skills/iceberg-optimizer/      the skill (this is what you install)
 ## Install
 
 ```bash
-# user-level (available in every project)
-cp -r skills/iceberg-optimizer ~/.claude/skills/
+# user-level via npx (available in every project)
+npx github:itamarwe/iceberg-optimizer-skill install
 
-# or project-level (scoped to one repo)
+# after npm publication, the same install can be shortened to:
+npx iceberg-optimizer-skill install
+
+# project-level (scoped to one repo)
 cp -r skills/iceberg-optimizer <your-repo>/.claude/skills/
+
+# or project-level via npx
+npx github:itamarwe/iceberg-optimizer-skill install --target <your-repo>/.claude/skills
+
+# Codex user-level install
+npx github:itamarwe/iceberg-optimizer-skill install --codex
+
+# manual user-level fallback from a local clone
+cp -r skills/iceberg-optimizer ~/.claude/skills/
 ```
 
 Then ask Claude Code to *"optimize my Iceberg table"* — or to profile it, design

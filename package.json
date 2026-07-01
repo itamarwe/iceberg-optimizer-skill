@@ -1,0 +1,27 @@
+{
+  "name": "iceberg-optimizer-skill",
+  "version": "0.1.0",
+  "description": "npx installer for the iceberg-optimizer Claude/Codex skill.",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/itamarwe/iceberg-optimizer-skill.git"
+  },
+  "bugs": {
+    "url": "https://github.com/itamarwe/iceberg-optimizer-skill/issues"
+  },
+  "homepage": "https://github.com/itamarwe/iceberg-optimizer-skill#readme",
+  "bin": {
+    "iceberg-optimizer-skill": "bin/iceberg-optimizer-skill.js"
+  },
+  "files": [
+    "bin/",
+    "skills/iceberg-optimizer/"
+  ],
+  "scripts": {
+    "test": "node --test test/install-cli.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
