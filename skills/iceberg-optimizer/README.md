@@ -39,6 +39,10 @@ maintenance schedule, decide whether it's worth compacting, etc.).
 ## The scripts (stdlib-only; `sqlglot` optional)
 
 ```bash
+# 0. Generate engine-specific collection SQL and runners
+python scripts/trino_input.py --table cat.db.tbl --out-dir input_bundle
+#   (or spark_input.py, glue_input.py, snowflake_input.py)
+
 # 1. Profile from exported metadata tables
 python scripts/profile_table.py --snapshots snap.json --files files.json \
     [--partitions parts.json] [--manifests mans.json] --out profile.json
@@ -60,6 +64,13 @@ skill never connects to your warehouse. The simulator's cost model is transparen
 and every assumption is printed and overridable via `--assumptions`; treat its
 output as directional, not a benchmark.
 
+The `*_input.py` helpers create an input bundle for the engine the user already
+has: read-only export SQL, the expected CSV filenames, and `run_profile.sh` /
+`run_workload.sh` wrappers. Glue/EMR uses Spark-compatible metadata tables with
+the Glue catalog default. Snowflake can provide workload history and snapshots,
+but full physical profiling usually needs Spark, Trino, Glue, or another
+Iceberg-capable catalog reader.
+
 ## Layout
 
 ```
@@ -73,6 +84,8 @@ references/testing.md             how to validate recommendations safely
 engines/                          per-engine syntax: spark · trino · glue ·
                                   snowflake · ingestion
 scripts/                          profile_table · parse_query_log · simulate
+                                  spark_input · trino_input · glue_input ·
+                                  snowflake_input
 tests/                            unit tests + skill_benchmark fixtures
 docker/                           local Spark + Iceberg sandbox
 ```

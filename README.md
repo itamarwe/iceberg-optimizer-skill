@@ -22,7 +22,8 @@ skills/iceberg-optimizer/      the skill (this is what you install)
 ├── README.md                  skill overview, install, and script usage
 ├── references/                decision framework, procedures, interview, scheduling
 ├── engines/                   per-engine syntax (spark, trino, glue, snowflake, …)
-├── scripts/                   profile_table · parse_query_log · simulate (stdlib-only)
+├── scripts/                   engine input helpers · profile_table ·
+│                              parse_query_log · simulate (stdlib-only)
 ├── tests/                     unit tests + skill_benchmark fixtures
 └── docker/                    local Spark + Iceberg sandbox
 ```

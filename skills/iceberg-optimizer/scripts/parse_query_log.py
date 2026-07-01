@@ -2,8 +2,9 @@
 """Reconstruct the read access pattern for an Iceberg table from query logs.
 
 Input modes (one SQL source required, --explain-analyze is supplementary):
-  --trino-queries FILE   JSON/CSV export of system.runtime.queries (or any table
-                         with a `query` column; optional input_rows/output_rows/
+  --trino-queries FILE   JSON/CSV query-history export with a `query` column
+                         (Trino system.runtime.queries, Snowflake query history,
+                         or any similar table; optional input_rows/output_rows/
                          input_bytes/physical_input_bytes columns enable selectivity
                          and scan stats). Also accepts Trino JSON event-listener logs
                          (queryCompletedEvent envelope auto-detected; physicalInputDataSize
@@ -411,7 +412,7 @@ def main(argv=None):
     ap.add_argument("--table", required=True, help="fully-qualified table, e.g. cat.db.tbl")
     src = ap.add_mutually_exclusive_group(required=False)
     src.add_argument("--trino-queries",
-                     help="JSON/CSV from system.runtime.queries, or Trino JSON event-listener log")
+                     help="JSON/CSV query history with a query column, or Trino JSON event-listener log")
     src.add_argument("--sql-file", help="Raw SQL file; statements delimited by ';'")
     src.add_argument("--spark-eventlog", help="Spark event-log NDJSON")
     ap.add_argument("--query-column", default="query",
