@@ -1,7 +1,7 @@
 # iceberg-optimizer-skill
 
 A [Claude Code](https://claude.com/claude-code) **Agent Skill** that diagnoses an
-Apache Iceberg table and produces a ranked, cost-aware plan across three domains —
+Apache Iceberg table and produces a ranked, cost-aware Markdown report across three domains —
 **table layout** (compaction, partition evolution, format upgrade), **ingestion
 pipeline** (write distribution, file sizing, sort-at-write), and **maintenance**
 (snapshot expiry, orphan cleanup, manifest rewrite) — plus a run schedule.
@@ -20,12 +20,12 @@ Engines: Spark · Trino · AWS Glue/EMR · Snowflake · Flink / Kafka Connect.
 skills/iceberg-optimizer/      the skill (this is what you install)
 ├── SKILL.md                   orchestrator: the 5-phase flow
 ├── README.md                  skill overview, install, and script usage
-├── references/                decision framework, procedures, interview, scheduling
+├── references/                decision framework, procedures, reporting, interview, scheduling
 ├── engines/                   per-engine syntax (spark, trino, glue, snowflake, …)
 ├── scripts/                   engine input helpers · profile_table ·
 │                              parse_query_log · simulate (stdlib-only)
 ├── tests/                     unit tests + skill_benchmark fixtures
-└── docker/                    local Spark + Iceberg sandbox
+└── docker/                    local Spark + Trino + Iceberg sandbox
 ```
 
 ## Install
@@ -56,15 +56,55 @@ a maintenance schedule, or decide whether it's even worth compacting.
 See [`skills/iceberg-optimizer/README.md`](skills/iceberg-optimizer/README.md)
 for the full walkthrough and standalone script usage.
 
+## How this compares to other Iceberg skills
+
+Several good Iceberg skills exist; they solve different problems. This one is an
+**optimization decision engine** — it reads a specific table's real metadata and
+query workload and produces a cost-ranked, table-specific plan (up to and
+including *do nothing*), backed by runnable scripts and a scenario benchmark.
+
+|  | **This skill** | **Advisory / best-practice skills** | **Platform-native skills** (e.g. Databricks) |
+|---|---|---|---|
+| Goal | Decide *whether & how* to optimize *this* table | Answer Iceberg questions correctly | Operate Iceberg inside one platform |
+| Profiles the real table + workload | ✅ | ❌ | ❌ |
+| Cost simulation across axes | ✅ | ❌ | ❌ (platform auto-manages) |
+| Runnable scripts, not just prose | ✅ | ❌ | ❌ |
+| Scenario benchmark validating advice | ✅ | ❌ | ❌ |
+| Breadth of catalogs / format-spec depth | focused | often wider | platform-scoped |
+
+In short: advisory skills encode broad correctness, and platform skills encode
+correct in-platform operations; this skill is the one that looks at *your*
+table's numbers and tells you what it specifically needs — and proves the
+recommendation against a benchmark suite. The two kinds are complementary: pair
+this with a platform skill when you live inside one warehouse.
+
 ## Development
 
 ```bash
 cd skills/iceberg-optimizer
-python -m pytest tests/                    # unit tests
-python tests/skill_benchmark/run_benchmark.py --all   # scenario benchmark
+pip install pytest                              # only dependency, for the unit tests
+python -m pytest tests/                         # unit tests
 tests/integration/smoke_input_helpers_docker.sh  # Docker Spark+Trino/Iceberg helper smoke test
+python tests/skill_benchmark/run_benchmark.py --all --judge   # scenario benchmark (needs the `claude` CLI)
 ```
 
-The scripts are standard-library only (`sqlglot` optional). The skill never
-connects to your warehouse — it operates on exported Iceberg metadata and query
-logs.
+The scripts themselves are standard-library only (`sqlglot` optional) and never open
+a connection — they operate on exported Iceberg metadata and logs. The **skill** can
+connect when you let it: in **Direct mode** it runs the diagnostic queries against
+your catalog itself (`trino` / `spark-sql` / `beeline`, or `TRINO_URL` / `SPARK_HOME`
+/ `DATABRICKS_HOST` / `SNOWFLAKE_ACCOUNT`); in **Exported mode** it reads files you
+provide; otherwise it hands you queries to paste back. Either way it stays
+**read-only until you approve a plan** — it never runs a destructive operation on its
+own.
+
+## Contributing
+
+Issues and PRs welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, test,
+and benchmark instructions. This skill was authored with substantial help from an
+AI coding assistant and reviewed by a human maintainer; treat its output as
+directional advice and validate against your own tables before running anything
+destructive.
+
+## License
+
+Apache License 2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).

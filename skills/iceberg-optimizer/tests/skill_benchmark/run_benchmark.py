@@ -217,7 +217,19 @@ def run_scenario(scenario: dict, skill_context: str,
     user_msg = build_scenario_message(scenario)
 
     print("  Calling Claude...", end="", flush=True)
-    output = call_claude(skill_context, user_msg)
+    try:
+        output = call_claude(skill_context, user_msg)
+    except Exception as e:  # noqa: BLE001 — never let one scenario abort the run
+        print(f" ERROR: {e}")
+        return {
+            "scenario_id": scenario["id"],
+            "word_count": 0,
+            "output": "",
+            "error": f"main call failed: {e}",
+            "judge": {"score": 0, "reasoning": f"scenario call failed: {e}",
+                      "correct_actions_found": [], "incorrect_or_missing": []},
+            "judge_passed": False,
+        }
     word_count = len(output.split())
     print(f" done ({word_count} words)")
 
@@ -234,7 +246,12 @@ def run_scenario(scenario: dict, skill_context: str,
 
     if use_judge:
         print("  Running LLM judge...", end="", flush=True)
-        judge = llm_judge(output, scenario)
+        try:
+            judge = llm_judge(output, scenario)
+        except Exception as e:  # noqa: BLE001 — a flaky judge call must not crash the run
+            print(f" ERROR: {e}")
+            judge = {"score": 0, "reasoning": f"judge call failed: {e}",
+                     "correct_actions_found": [], "incorrect_or_missing": []}
         judge_passed = judge.get("passed", judge.get("score", 0) >= 3)
         judge_status = "PASS" if judge_passed else "FAIL"
         print(f" score={judge.get('score', '?')}/5  {judge_status}")
@@ -314,6 +331,12 @@ def main() -> None:
     skill_context = load_skill_context()
     print(f"  {len(skill_context):,} chars ({len(skill_context.split()):,} words)")
 
+    def save_json() -> None:
+        if not args.output_json:
+            return
+        out = [{k: v for k, v in r.items() if k != "output"} for r in results]
+        Path(args.output_json).write_text(json.dumps(out, indent=2))
+
     results = []
     for i, scenario in enumerate(selected):
         if i > 0:
@@ -321,15 +344,12 @@ def main() -> None:
         r = run_scenario(scenario, skill_context,
                          use_judge=args.judge, verbose=args.verbose)
         results.append(r)
+        save_json()  # persist incrementally so a late failure never discards prior results
 
     print_report(results, use_judge=args.judge)
 
     if args.output_json:
-        out = [
-            {k: v for k, v in r.items() if k != "output"}
-            for r in results
-        ]
-        Path(args.output_json).write_text(json.dumps(out, indent=2))
+        save_json()
         print(f"Results saved to {args.output_json}")
 
     if args.judge:

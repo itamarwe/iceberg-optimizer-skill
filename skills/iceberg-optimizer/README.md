@@ -21,8 +21,9 @@ asks before it decides, and simulates before it recommends.**
    scenarios across query latency, query cost, maintenance cost, and storage
    cost, driven by the table's real numbers, so you optimize for the axis you
    care about.
-5. **Plan** with exact, engine-specific commands (Spark, Trino, AWS Glue/EMR,
-   Snowflake, Flink / Kafka Connect) and a schedule.
+5. **Plan** as a Markdown report with a data-backed action summary, exact
+   engine-specific commands (Spark, Trino, AWS Glue/EMR, Snowflake, Flink /
+   Kafka Connect), monitoring, and a schedule.
 
 ## Install
 
@@ -71,10 +72,23 @@ python scripts/simulate.py --profile profile.json --workload workload.json \
     --queries-per-month 50000 --priority total
 ```
 
-Inputs are exports of the table's Iceberg metadata tables and query history — the
-skill never connects to your warehouse. The simulator's cost model is transparent
-and every assumption is printed and overridable via `--assumptions`; treat its
-output as directional, not a benchmark.
+These scripts read exported Iceberg metadata, query history, and (when available)
+ingestion/writer logs — they never open a connection themselves. The **skill**,
+however, can run the underlying queries directly against your catalog in **Direct
+mode** (`trino` / `spark-sql` / `beeline`), read provided files in **Exported mode**,
+or hand you queries to paste back — staying read-only until you approve a plan. The
+simulator's cost model is transparent and every assumption is printed and overridable
+via `--assumptions`; treat its output as directional, not a benchmark.
+
+## Output report
+
+The default handoff is `iceberg_optimization_report.md`: a Markdown report that
+starts with an executive summary and a `Summary: Why Each Action, In One
+Sentence` table. Each recommended, skipped, or deferred action is tied to a
+specific metric from `profile.json`, `workload.json`, interview answers, or the
+simulator output so the user can understand the recommendation and resume later.
+An HTML report can be generated as an optional follow-up, but Markdown is the
+source of truth.
 
 The `*_input.py` helpers create an input bundle for the engine the user already
 has: read-only export SQL, the expected CSV filenames, and `run_profile.sh` /
@@ -97,6 +111,8 @@ SKILL.md                          orchestrator: the 5-phase flow
 references/metadata-tables.md     metadata table schemas + diagnostic queries
 references/workload-interview.md  derive-then-ask question bank
 references/decision-framework.md  joint scoring rules + intent gates
+references/reporting.md           required Markdown recommendation report shape
+references/report-sample.md       sample report to copy structurally
 references/procedures.md          routing index → per-engine procedures
 references/scheduling.md          archetype→schedule matrix + triggers
 references/testing.md             how to validate recommendations safely
@@ -106,5 +122,5 @@ scripts/                          profile_table · parse_query_log · simulate
                                   spark_input · trino_input · glue_input ·
                                   snowflake_input
 tests/                            unit tests + skill_benchmark fixtures
-docker/                           local Spark + Iceberg sandbox
+docker/                           local Spark + Trino + Iceberg sandbox
 ```
