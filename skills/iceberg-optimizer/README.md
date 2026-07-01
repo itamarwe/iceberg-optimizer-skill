@@ -60,11 +60,13 @@ skill never connects to your warehouse. The simulator's cost model is transparen
 and every assumption is printed and overridable via `--assumptions`; treat its
 output as directional, not a benchmark.
 
-DuckDB is supported as a lightweight Iceberg access engine. It can inspect a
-metadata path with `iceberg_scan`/`iceberg_metadata` or attach an Iceberg REST
-catalog for richer catalog operations. DuckDB metadata exports may not include
-file sizes; in that case the profiler marks file-size metrics as unavailable
-instead of inferring small-file pressure.
+DuckDB is supported as a lightweight Iceberg access engine and fallback. If the
+user already has a Spark, Trino, Snowflake, Glue/EMR, S3 Tables, REST-catalog, or
+other approved gateway, use that first. If no gateway/export exists, DuckDB can
+inspect a metadata path with `iceberg_scan`/`iceberg_metadata` or attach an
+Iceberg REST catalog for richer catalog operations. DuckDB metadata exports may
+not include file sizes; in that case the profiler marks file-size metrics as
+unavailable instead of inferring small-file pressure.
 
 ## Layout
 

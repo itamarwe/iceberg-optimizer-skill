@@ -10,7 +10,9 @@ It is built on one rule: **observe before you ask, ask before you decide,
 simulate before you recommend.** Rather than reaching for the standard
 "compact + sort + expire" runbook, it profiles the table's real metadata,
 reconstructs the workload, and simulates trade-offs so the recommendation fits
-the table you actually have.
+the table you actually have. If the user has a live Iceberg gateway, the skill
+uses it first; otherwise DuckDB can act as the lightweight fallback for metadata
+inspection.
 
 Engines: Spark · Trino · DuckDB · AWS Glue/EMR · Snowflake · Flink / Kafka Connect.
 
