@@ -4,6 +4,9 @@ Use this format in Phase 5 after the user has selected or accepted a scenario.
 The primary deliverable is Markdown. Generate an HTML version only if the user
 asks for one.
 
+For non-trivial reports, read `references/report-sample.md` as a concrete
+template and copy its structure, not its facts or action choices.
+
 ## Required report order
 
 1. `# Iceberg Optimization Report: <table>`

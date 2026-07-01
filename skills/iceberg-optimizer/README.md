@@ -79,6 +79,7 @@ references/metadata-tables.md     metadata table schemas + diagnostic queries
 references/workload-interview.md  derive-then-ask question bank
 references/decision-framework.md  joint scoring rules + intent gates
 references/reporting.md           required Markdown recommendation report shape
+references/report-sample.md       sample report to copy structurally
 references/procedures.md          routing index → per-engine procedures
 references/scheduling.md          archetype→schedule matrix + triggers
 references/testing.md             how to validate recommendations safely
