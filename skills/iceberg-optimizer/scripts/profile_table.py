@@ -93,8 +93,10 @@ def parse_ts(v):
         if n > 1e11:  # milliseconds
             n /= 1000.0
         return datetime.fromtimestamp(n, tz=timezone.utc)
-    s = str(v).strip().replace("T", " ")
+    s = re.sub(r"(?<=\d)T(?=\d)", " ", str(v).strip())
     s = re.sub(r"[+-]\d{2}:?\d{2}$", "", s).replace("Z", "").strip()
+    s = re.sub(r"\s+[A-Z]{2,4}$", "", s).strip()
+    s = re.sub(r"(\.\d{6})\d+", r"\1", s)
     for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
         try:
             return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc)

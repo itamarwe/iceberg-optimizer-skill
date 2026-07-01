@@ -27,11 +27,23 @@ asks before it decides, and simulates before it recommends.**
 
 ## Install
 
-Copy the skill into your Claude Code skills directory:
+Install the skill into your Claude Code skills directory:
 
 ```bash
-cp -r skills/iceberg-optimizer ~/.claude/skills/        # user-level, or
-cp -r skills/iceberg-optimizer <your-repo>/.claude/skills/   # project-level
+# user-level, directly from GitHub
+npx github:itamarwe/iceberg-optimizer-skill install
+
+# after npm publication
+npx iceberg-optimizer-skill install
+
+# project-level
+npx github:itamarwe/iceberg-optimizer-skill install --target <your-repo>/.claude/skills
+
+# Codex user-level install
+npx github:itamarwe/iceberg-optimizer-skill install --codex
+
+# manual fallback
+cp -r skills/iceberg-optimizer ~/.claude/skills/
 ```
 
 Then ask Claude Code to "optimize my Iceberg table" (or profile it, design a
@@ -40,6 +52,10 @@ maintenance schedule, decide whether it's worth compacting, etc.).
 ## The scripts (stdlib-only; `sqlglot` optional)
 
 ```bash
+# 0. Generate engine-specific collection SQL and runners
+python scripts/trino_input.py --table cat.db.tbl --out-dir input_bundle
+#   (or spark_input.py, glue_input.py, snowflake_input.py)
+
 # 1. Profile from exported metadata tables
 python scripts/profile_table.py --snapshots snap.json --files files.json \
     [--partitions parts.json] [--manifests mans.json] --out profile.json
@@ -74,6 +90,20 @@ simulator output so the user can understand the recommendation and resume later.
 An HTML report can be generated as an optional follow-up, but Markdown is the
 source of truth.
 
+The `*_input.py` helpers create an input bundle for the engine the user already
+has: read-only export SQL, the expected CSV filenames, and `run_profile.sh` /
+`run_workload.sh` wrappers. Glue/EMR uses Spark-compatible metadata tables with
+the Glue catalog default. Snowflake can provide workload history and snapshots,
+but full physical profiling usually needs Spark, Trino, Glue, or another
+Iceberg-capable catalog reader.
+
+To smoke-test the generated Spark and Trino helper bundles against the local
+Docker Spark/Trino/Iceberg REST/MinIO stack:
+
+```bash
+tests/integration/smoke_input_helpers_docker.sh
+```
+
 ## Layout
 
 ```
@@ -89,6 +119,8 @@ references/testing.md             how to validate recommendations safely
 engines/                          per-engine syntax: spark · trino · glue ·
                                   snowflake · ingestion
 scripts/                          profile_table · parse_query_log · simulate
+                                  spark_input · trino_input · glue_input ·
+                                  snowflake_input
 tests/                            unit tests + skill_benchmark fixtures
-docker/                           local Spark + Iceberg sandbox
+docker/                           local Spark + Trino + Iceberg sandbox
 ```

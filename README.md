@@ -22,19 +22,32 @@ skills/iceberg-optimizer/      the skill (this is what you install)
 ├── README.md                  skill overview, install, and script usage
 ├── references/                decision framework, procedures, reporting, interview, scheduling
 ├── engines/                   per-engine syntax (spark, trino, glue, snowflake, …)
-├── scripts/                   profile_table · parse_query_log · simulate (stdlib-only)
+├── scripts/                   engine input helpers · profile_table ·
+│                              parse_query_log · simulate (stdlib-only)
 ├── tests/                     unit tests + skill_benchmark fixtures
-└── docker/                    local Spark + Iceberg sandbox
+└── docker/                    local Spark + Trino + Iceberg sandbox
 ```
 
 ## Install
 
 ```bash
-# user-level (available in every project)
-cp -r skills/iceberg-optimizer ~/.claude/skills/
+# user-level via npx (available in every project)
+npx github:itamarwe/iceberg-optimizer-skill install
 
-# or project-level (scoped to one repo)
+# after npm publication, the same install can be shortened to:
+npx iceberg-optimizer-skill install
+
+# project-level (scoped to one repo)
 cp -r skills/iceberg-optimizer <your-repo>/.claude/skills/
+
+# or project-level via npx
+npx github:itamarwe/iceberg-optimizer-skill install --target <your-repo>/.claude/skills
+
+# Codex user-level install
+npx github:itamarwe/iceberg-optimizer-skill install --codex
+
+# manual user-level fallback from a local clone
+cp -r skills/iceberg-optimizer ~/.claude/skills/
 ```
 
 Then ask Claude Code to *"optimize my Iceberg table"* — or to profile it, design
@@ -71,6 +84,7 @@ this with a platform skill when you live inside one warehouse.
 cd skills/iceberg-optimizer
 pip install pytest                              # only dependency, for the unit tests
 python -m pytest tests/                         # unit tests
+tests/integration/smoke_input_helpers_docker.sh  # Docker Spark+Trino/Iceberg helper smoke test
 python tests/skill_benchmark/run_benchmark.py --all --judge   # scenario benchmark (needs the `claude` CLI)
 ```
 
