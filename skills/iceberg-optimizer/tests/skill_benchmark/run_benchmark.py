@@ -37,7 +37,7 @@ CLAUDE_CLI = "claude"
 # ── Context loading ───────────────────────────────────────────────────────────
 
 def load_skill_context() -> str:
-    """Load SKILL.md + all references/*.md as a combined system prompt."""
+    """Load SKILL.md + references/*.md + engines/*.md as a combined system prompt."""
     parts = []
 
     skill_md = SKILL_DIR / "SKILL.md"
@@ -48,6 +48,11 @@ def load_skill_context() -> str:
     if refs_dir.exists():
         for ref_file in sorted(refs_dir.glob("*.md")):
             parts.append(f"# REFERENCE: {ref_file.name}\n\n{ref_file.read_text()}")
+
+    engines_dir = SKILL_DIR / "engines"
+    if engines_dir.exists():
+        for engine_file in sorted(engines_dir.glob("*.md")):
+            parts.append(f"# ENGINE: {engine_file.name}\n\n{engine_file.read_text()}")
 
     return "\n\n---\n\n".join(parts)
 

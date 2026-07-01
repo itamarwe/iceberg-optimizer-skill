@@ -12,7 +12,7 @@ simulate before you recommend.** Rather than reaching for the standard
 reconstructs the workload, and simulates trade-offs so the recommendation fits
 the table you actually have.
 
-Engines: Spark · Trino · AWS Glue/EMR · Snowflake · Flink / Kafka Connect.
+Engines: Spark · Trino · DuckDB · AWS Glue/EMR · Snowflake · Flink / Kafka Connect.
 
 ## Repository layout
 
@@ -21,7 +21,7 @@ skills/iceberg-optimizer/      the skill (this is what you install)
 ├── SKILL.md                   orchestrator: the 5-phase flow
 ├── README.md                  skill overview, install, and script usage
 ├── references/                decision framework, procedures, interview, scheduling
-├── engines/                   per-engine syntax (spark, trino, glue, snowflake, …)
+├── engines/                   per-engine syntax (spark, trino, duckdb, glue, snowflake, …)
 ├── scripts/                   profile_table · parse_query_log · simulate (stdlib-only)
 ├── tests/                     unit tests + skill_benchmark fixtures
 └── docker/                    local Spark + Iceberg sandbox

@@ -124,14 +124,17 @@ def classify_cadence(median_gap_sec):
 
 
 def profile_files(rows, target_mb):
-    data, deletes, pos_del, eq_del = [], 0, 0, 0
+    data_count, data_sizes = 0, []
+    deletes, pos_del, eq_del = 0, 0, 0
     data_records, pos_del_records, eq_del_records = 0, 0, 0
     for r in rows:
         content = to_int(get(r, "content"), 0)
-        size = to_int(get(r, "file_size_in_bytes", "file_size"), 0) or 0
+        size = to_int(get(r, "file_size_in_bytes", "file_size"), None)
         record_count = to_int(get(r, "record_count"), 0) or 0
         if content == 0:
-            data.append(size)
+            data_count += 1
+            if size is not None:
+                data_sizes.append(size)
             data_records += record_count
         else:
             deletes += 1
@@ -142,7 +145,7 @@ def profile_files(rows, target_mb):
                 eq_del += 1
                 eq_del_records += record_count
     out = {
-        "data_files": len(data),
+        "data_files": data_count,
         "delete_files": deletes,
         "position_delete_files": pos_del,
         "equality_delete_files": eq_del,
@@ -153,23 +156,26 @@ def profile_files(rows, target_mb):
         "position_delete_records": pos_del_records,
         "equality_delete_records": eq_del_records,
     }
-    total = len(data) + deletes
+    total = data_count + deletes
     out["delete_file_pct"] = round(deletes / total, 4) if total else 0.0
     if data_records > 0:
         out["eq_delete_pressure"] = round(eq_del_records / data_records, 4)
         out["pos_delete_pressure"] = round(pos_del_records / data_records, 4)
-    if data:
-        small = sum(1 for s in data if s < SMALL_FILE_MB * MB)
+    if data_sizes:
+        small = sum(1 for s in data_sizes if s < SMALL_FILE_MB * MB)
         out.update({
-            "avg_mb": round(sum(data) / len(data) / MB, 1),
-            "median_mb": round(stats.median(data) / MB, 1),
+            "sized_data_files": len(data_sizes),
+            "avg_mb": round(sum(data_sizes) / len(data_sizes) / MB, 1),
+            "median_mb": round(stats.median(data_sizes) / MB, 1),
             "files_under_64mb": small,
-            "files_under_64mb_pct": round(small / len(data), 4),
-            "total_gb": round(sum(data) / GB, 3),
+            "files_under_64mb_pct": round(small / len(data_sizes), 4),
+            "total_gb": round(sum(data_sizes) / GB, 3),
             "target_mb": target_mb,
-            "needs_binpack": (sum(data) / len(data) / MB < SMALL_FILE_MB)
-                             or (small / len(data) > 0.3),
+            "needs_binpack": (sum(data_sizes) / len(data_sizes) / MB < SMALL_FILE_MB)
+                             or (small / len(data_sizes) > 0.3),
         })
+    elif data_count:
+        out["size_metrics_available"] = False
     return out
 
 
@@ -177,7 +183,7 @@ def profile_snapshots(rows):
     parsed = []
     for r in rows:
         parsed.append({
-            "ts": parse_ts(get(r, "committed_at", "made_current_at")),
+            "ts": parse_ts(get(r, "committed_at", "made_current_at", "timestamp_ms")),
             "op": (get(r, "operation") or "unknown"),
             "summary": parse_map(get(r, "summary")),
         })

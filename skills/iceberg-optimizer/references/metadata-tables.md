@@ -5,6 +5,12 @@ addressed as `catalog.schema.table.<name>` (Spark) or
 `catalog.schema."table$name"` (Trino). All queries below are written for Spark
 SQL; the Trino equivalents are noted where the syntax differs.
 
+DuckDB uses Iceberg table functions rather than Spark/Trino `$table` names. For
+DuckDB, load `engines/duckdb.md` and use `iceberg_snapshots(table_ref)`,
+`iceberg_metadata(table_ref)`, `iceberg_column_stats(table_ref)`, and
+`iceberg_partition_stats(table_ref)`, where `table_ref` is either a metadata path
+or a fully qualified table in an attached Iceberg REST catalog.
+
 The complete set: `snapshots`, `history`, `metadata_log_entries`, `refs`,
 `manifests`, `all_manifests`, `files`, `data_files`, `delete_files`, `entries`,
 `all_entries`, `all_files`, `all_data_files`, `all_delete_files`, `partitions`,

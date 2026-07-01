@@ -351,5 +351,21 @@
       "lifecycle": "hot \u2014 critical production streaming table in crisis"
     },
     "expected_outcome": "The correct recommendation must treat this as an emergency and prescribe a two-phase fix: FIRST, fix write-time configuration (distribution-mode=hash + target-file-size-bytes=256MB) to stop the ingest from generating small files \u2014 without this fix, compaction is running on a treadmill and will never catch up. SECOND, run emergency bin-pack compaction on cold partitions only (past days/weeks) to reduce the existing file count backlog, while the write-time fix prevents new small files from being created. The recommendation must explicitly state that write-time fix MUST come first, and that compaction alone (without write-time fix) cannot solve the spiral. A recommendation that only recommends increasing compaction frequency without fixing write-time configuration is incorrect."
+  },
+  {
+    "id": "duckdb_lightweight_profile",
+    "description": "DuckDB is the available engine. The table can be profiled through DuckDB Iceberg metadata functions, but the workload shows zero partition pruning for tenant_id filters. Correct: use DuckDB for metadata/profile collection and validation, recommend partition evolution or sort using a documented maintenance engine, and do not invent DuckDB rewrite_data_files/expire_snapshots syntax.",
+    "table": "lakehouse.analytics.events",
+    "engine": "DuckDB",
+    "interview_answers": {
+      "query_latency_requirement": "responsive \u2014 seconds to minutes",
+      "query_frequency": "regularly \u2014 600 queries per month from analysts",
+      "freshness_sla": "hourly is fine",
+      "cost_priority": "query cost \u2014 avoid full scans",
+      "mutability_outlook": "append-only",
+      "time_travel_need": "short \u2014 7 days",
+      "lifecycle": "warm \u2014 actively used"
+    },
+    "expected_outcome": "The correct recommendation must recognize DuckDB as a lightweight Iceberg profiling/input engine: use INSTALL/LOAD iceberg plus iceberg_snapshots, iceberg_metadata, iceberg_column_stats, or iceberg_partition_stats against either a metadata path or an attached REST catalog. The optimization itself is driven by workload signals: tenant_id dominates the filters and partition_prune_rate=0.0, so partition evolution to bucket/hash by tenant_id or sort/z-order via a documented maintenance engine is needed. Because DuckDB's documented Iceberg support is not a Spark-style maintenance procedure layer, the answer must not fabricate DuckDB rewrite_data_files, expire_snapshots, remove_orphan_files, or manifest rewrite syntax. It should emit DuckDB inspection/validation SQL and route compaction/maintenance to Spark, Trino where supported, S3 Tables, or another documented engine."
   }
 ]
