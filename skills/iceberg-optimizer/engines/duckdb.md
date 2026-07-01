@@ -1,8 +1,11 @@
 # DuckDB Iceberg access
 
 Use DuckDB when the user wants a lightweight local engine to inspect Iceberg
-metadata or query a REST-catalog table without starting Spark/Trino. Keep the
-skill read-only unless the owner explicitly chooses a write/DDL operation.
+metadata or query a REST-catalog table without starting Spark/Trino. Prefer an
+existing user-provided gateway first; DuckDB is the fallback when no Spark,
+Trino, Snowflake, Glue/EMR, or other Iceberg-capable access path is available.
+Keep the skill read-only unless the owner explicitly chooses a write/DDL
+operation.
 
 Official DuckDB docs:
 - Iceberg extension overview: https://duckdb.org/docs/current/core_extensions/iceberg/overview.html
@@ -20,6 +23,25 @@ DuckDB has two Iceberg modes:
    iceberg, ...)`. This unlocks catalog-managed reads and write/DDL operations
    such as `CREATE TABLE`, `INSERT`, `UPDATE`, `DELETE`, `MERGE INTO`, and
    `ALTER TABLE` when the catalog/storage supports them.
+
+## Fallback decision
+
+Use this order before proposing DuckDB:
+
+1. If the user has Spark, Trino, Snowflake-managed Iceberg, Glue/EMR, S3 Tables,
+   Polaris/Nessie/REST through an existing client, or another approved gateway,
+   use that gateway. It has the right catalog semantics, audit trail, and often
+   richer query history.
+2. If the user has already exported `profile.json`, metadata CSVs, or query
+   history, use the exports. Do not ask them to set up DuckDB just to recreate
+   data they already supplied.
+3. If neither exists, ask for one of:
+   - the table metadata path, e.g. `s3://bucket/table/metadata/v42.metadata.json`;
+   - the table root plus version-hint access;
+   - REST catalog endpoint, warehouse, namespace/table, and non-secret auth
+     details. Request secrets only through the user's normal local mechanism.
+4. Use DuckDB to collect metadata/profile evidence and validate sample reads.
+   Route maintenance to the documented engine that supports the chosen action.
 
 ## Setup
 

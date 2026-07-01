@@ -9,8 +9,9 @@ description: >-
   clean up, repartition, compact, or design a maintenance schedule for an
   Iceberg table, or to decide whether a table is even worth optimizing.
   Engines: Spark, Trino, DuckDB, AWS Glue/EMR, Snowflake, Flink / Kafka Connect.
-  Adapts to Direct mode (live catalog access), Ask-User mode (user runs queries),
-  or Exported mode (pre-exported metadata files).
+  Adapts to Gateway/Direct mode (user-provided live catalog access), DuckDB
+  fallback mode (lightweight local Iceberg access when no gateway exists),
+  Ask-User mode (user runs queries), or Exported mode (pre-exported metadata files).
 ---
 
 # Iceberg Optimizer
@@ -46,12 +47,25 @@ Establish (ask if not stated): **which table(s)** (`catalog.schema.table`) and
 `rewrite_data_files`, or any `ALTER TABLE` until a specific plan is approved —
 `remove_orphan_files` and `expire_snapshots` *delete files*; treat as destructive.
 
-**Detect access mode** (in order): **Direct** — an Iceberg-capable SQL CLI is
-reachable (`trino`, `spark-sql`, `duckdb`, `beeline`, or env `TRINO_URL` /
-`SPARK_HOME` / `DATABRICKS_HOST` / `SNOWFLAKE_ACCOUNT`); the skill queries autonomously.
-**Exported** — the user provided files (profile.json / metadata CSVs / query logs /
-writer config or ingestion logs); the skill reads them. **Ask-User** (default) — no access; ask *"Can I run SQL against your
-catalog, or should I give you queries to paste back?"* and the user pastes output.
+**Detect access mode** (in order):
+
+1. **Gateway / Direct** — the user already has an Iceberg-capable gateway or CLI
+   (`trino`, `spark-sql`, `beeline`, Snowflake, Glue/EMR, REST catalog through
+   an existing client, or env `TRINO_URL` / `SPARK_HOME` / `DATABRICKS_HOST` /
+   `SNOWFLAKE_ACCOUNT`).
+   Use that gateway first; it is the source of truth for permissions, catalog
+   behavior, query stats, and engine-specific maintenance capability.
+2. **Exported** — the user provided files (`profile.json`, metadata CSVs, query
+   logs, writer config, or ingestion logs); read those files and do not ask for
+   live access.
+3. **DuckDB fallback** — no gateway/export exists, but the user can provide an
+   Iceberg metadata path or REST catalog details and local `duckdb` is available
+   or acceptable to install. Use DuckDB as lightweight read-only profiling
+   infrastructure; do not treat it as a maintenance engine unless a documented
+   DuckDB operation exactly matches the chosen action.
+4. **Ask-User** — no gateway/export/DuckDB fallback is available; ask *"Can I run
+   SQL against your catalog, use DuckDB with a metadata path or REST catalog, or
+   should I give you queries to paste back?"* and let the user choose.
 
 > **Load (Phase 0):** Nothing beyond SKILL.md. Detect mode and engine only.
 
