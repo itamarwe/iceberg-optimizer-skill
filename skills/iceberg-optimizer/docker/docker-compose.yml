@@ -1,11 +1,12 @@
 # Local Iceberg end-to-end environment for iceberg-optimizer testing.
 #
 # Run `docker compose up -d` then `docker exec -it spark-iceberg bash` to get a
-# Spark shell. All Iceberg SQL examples from references/procedures.md work against
-# the `demo` catalog, which is wired to the REST catalog and MinIO below.
+# Spark shell, or `docker exec -it trino trino --catalog demo` for Trino. All
+# Iceberg SQL examples from references/procedures.md work against the `demo`
+# catalog, which is wired to the REST catalog and MinIO below.
 #
 # The tests/ and scripts/ directories are bind-mounted at /opt/tests and
-# /opt/scripts inside the Spark container for easy access.
+# /opt/scripts inside the Spark/Trino containers for easy access.
 
 services:
 
@@ -83,3 +84,16 @@ services:
     volumes:
       - ../tests:/opt/tests
       - ../scripts:/opt/scripts
+
+  trino:
+    image: trinodb/trino:latest
+    container_name: trino
+    depends_on:
+      iceberg-rest:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./trino/catalog:/etc/trino/catalog:ro
+      - ../tests:/opt/tests
+      - ../scripts:/opt/scripts:ro

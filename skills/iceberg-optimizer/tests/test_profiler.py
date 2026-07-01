@@ -12,7 +12,14 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
-from profile_table import profile_files, profile_snapshots, profile_partitions, profile_manifests, _flags
+from profile_table import (
+    _flags,
+    parse_ts,
+    profile_files,
+    profile_manifests,
+    profile_partitions,
+    profile_snapshots,
+)
 
 
 MB = 1024 * 1024
@@ -165,6 +172,12 @@ def build_profile(files_rows, snap_rows):
     }
     profile["flags"] = _flags(profile)
     return profile
+
+
+def test_parse_ts_accepts_trino_timezone_suffix():
+    parsed = parse_ts("2026-07-01 09:52:19.123456789 UTC")
+
+    assert parsed == datetime(2026, 7, 1, 9, 52, 19, 123456, tzinfo=timezone.utc)
 
 
 # ---------------------------------------------------------------------------

@@ -59,6 +59,14 @@ def test_snowflake_workload_csv_matches_parser_columns():
     assert "DATEADD(day, -14" in sql
 
 
+def test_trino_workload_sql_uses_available_runtime_columns():
+    sql = render_workload_sql("trino", "cat.db.tbl", 7)
+
+    assert "FROM system.runtime.queries" in sql
+    assert "CAST(NULL AS BIGINT) AS input_bytes" in sql
+    assert "physical_input_bytes" not in sql
+
+
 def test_write_bundle_creates_profile_and_workload_runners():
     with tempfile.TemporaryDirectory() as tmp:
         out = write_bundle("trino", "cat.db.tbl", tmp)

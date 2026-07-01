@@ -140,8 +140,8 @@ def render_workload_sql(engine, table, days):
               query,
               query_id,
               created,
-              physical_input_bytes AS input_bytes,
-              processed_input_rows AS input_rows
+              CAST(NULL AS BIGINT) AS input_bytes,
+              CAST(NULL AS BIGINT) AS input_rows
             FROM system.runtime.queries
             WHERE state = 'FINISHED'
               AND lower(query) LIKE lower('%{short_name}%')

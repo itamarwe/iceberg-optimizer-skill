@@ -6,14 +6,24 @@ SKILL_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE_FILE="$SKILL_DIR/docker/docker-compose.yml"
 
 TABLE_NAME="${TABLE_NAME:-demo.input_helper.helper_smoke_${RANDOM}}"
-BUNDLE_DIR="${BUNDLE_DIR:-/tmp/iceberg_input_helper_smoke}"
+HOST_BUNDLE_ROOT="${HOST_BUNDLE_ROOT:-$SKILL_DIR/tests/.tmp/input_helper_smoke}"
+CONTAINER_BUNDLE_ROOT="/opt/tests/.tmp/input_helper_smoke"
+SPARK_BUNDLE_DIR="${SPARK_BUNDLE_DIR:-$CONTAINER_BUNDLE_ROOT/spark}"
+TRINO_BUNDLE_DIR="${TRINO_BUNDLE_DIR:-$CONTAINER_BUNDLE_ROOT/trino}"
+HOST_TRINO_BUNDLE_DIR="$HOST_BUNDLE_ROOT/trino"
 CLEANUP="${CLEANUP:-1}"
 
 run_in_spark() {
   docker exec -i \
     -e TABLE_NAME="$TABLE_NAME" \
-    -e BUNDLE_DIR="$BUNDLE_DIR" \
+    -e BUNDLE_DIR="$SPARK_BUNDLE_DIR" \
+    -e SPARK_BUNDLE_DIR="$SPARK_BUNDLE_DIR" \
+    -e TRINO_BUNDLE_DIR="$TRINO_BUNDLE_DIR" \
     spark-iceberg "$@"
+}
+
+run_trino_cli() {
+  docker exec trino trino --server http://localhost:8080 "$@"
 }
 
 wait_for_spark() {
@@ -27,6 +37,46 @@ wait_for_spark() {
   docker compose -f "$COMPOSE_FILE" ps >&2 || true
   echo "spark-iceberg did not become ready" >&2
   return 1
+}
+
+wait_for_trino() {
+  for _ in $(seq 1 90); do
+    if run_trino_cli --execute "SELECT 1" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  docker compose -f "$COMPOSE_FILE" ps >&2 || true
+  echo "trino did not become ready" >&2
+  return 1
+}
+
+export_commented_sql_with_trino() {
+  local sql_file="$1"
+  local out_dir="$2"
+  local output_name=""
+  local sql=""
+  local line=""
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == "-- output:"* ]]; then
+      output_name="${line#-- output: }"
+      sql=""
+      continue
+    fi
+    if [[ -z "$output_name" || -z "${line//[[:space:]]/}" || "$line" == --* ]]; then
+      continue
+    fi
+
+    sql+="$line"$'\n'
+    if [[ "$line" == *";" ]]; then
+      run_trino_cli --output-format CSV_HEADER --execute "$sql" > "$out_dir/$output_name"
+      echo "wrote $out_dir/$output_name"
+      output_name=""
+      sql=""
+    fi
+  done < "$sql_file"
 }
 
 drop_table() {
@@ -56,7 +106,7 @@ PY
 cleanup() {
   set +e
   drop_table
-  run_in_spark rm -rf "$BUNDLE_DIR" >/dev/null 2>&1 || true
+  rm -rf "$HOST_BUNDLE_ROOT" >/dev/null 2>&1 || true
   if [[ "$CLEANUP" == "1" ]]; then
     docker compose -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
   fi
@@ -64,8 +114,11 @@ cleanup() {
 trap cleanup EXIT
 
 echo "Starting Docker Iceberg stack..."
+rm -rf "$HOST_BUNDLE_ROOT"
+mkdir -p "$HOST_BUNDLE_ROOT"
 docker compose -f "$COMPOSE_FILE" up -d
 wait_for_spark
+wait_for_trino
 
 echo "Creating smoke table: $TABLE_NAME"
 run_in_spark python - <<'PY'
@@ -109,8 +162,8 @@ spark.stop()
 PY
 
 echo "Generating Spark input bundle..."
-run_in_spark rm -rf "$BUNDLE_DIR"
-run_in_spark python /opt/scripts/spark_input.py --table "$TABLE_NAME" --out-dir "$BUNDLE_DIR"
+run_in_spark rm -rf "$SPARK_BUNDLE_DIR"
+run_in_spark python /opt/scripts/spark_input.py --table "$TABLE_NAME" --out-dir "$SPARK_BUNDLE_DIR"
 
 echo "Exporting metadata queries through Spark..."
 run_in_spark python - <<'PY'
@@ -222,5 +275,43 @@ print(
     f"({profile['files']['data_files']} data files, "
     f"{profile['snapshots']['snapshot_count']} snapshots) and workload.json "
     f"({workload['selectivity']['median_bytes_scanned']} bytes scanned)."
+)
+PY
+
+echo "Generating Trino input bundle..."
+run_in_spark rm -rf "$TRINO_BUNDLE_DIR"
+run_in_spark python /opt/scripts/trino_input.py --table "$TABLE_NAME" --out-dir "$TRINO_BUNDLE_DIR"
+
+echo "Exporting metadata queries through Trino..."
+export_commented_sql_with_trino "$HOST_TRINO_BUNDLE_DIR/metadata_queries.sql" "$HOST_TRINO_BUNDLE_DIR"
+
+echo "Running generated Trino profile wrapper..."
+run_in_spark bash -lc 'bash "$TRINO_BUNDLE_DIR/run_profile.sh"'
+
+echo "Running representative Trino query and workload export..."
+run_trino_cli --execute "SELECT count(*) FROM $TABLE_NAME WHERE tenant_id = 'tenant-a'" >/dev/null
+export_commented_sql_with_trino "$HOST_TRINO_BUNDLE_DIR/workload_collection.sql" "$HOST_TRINO_BUNDLE_DIR"
+run_in_spark bash -lc 'bash "$TRINO_BUNDLE_DIR/run_workload.sh"'
+
+echo "Validating generated Trino JSON outputs..."
+run_in_spark python - <<'PY'
+import json
+import os
+from pathlib import Path
+
+table = os.environ["TABLE_NAME"]
+bundle = Path(os.environ["TRINO_BUNDLE_DIR"])
+profile = json.loads((bundle / "profile.json").read_text())
+workload = json.loads((bundle / "workload.json").read_text())
+
+assert profile["files"]["data_files"] >= 1, profile
+assert profile["snapshots"]["snapshot_count"] >= 1, profile
+assert workload["table"] == table, workload
+assert (bundle / "query_history.csv").read_text().startswith('"query",'), "missing Trino query history CSV"
+
+print(
+    "PASS: trino helper produced profile.json "
+    f"({profile['files']['data_files']} data files, "
+    f"{profile['snapshots']['snapshot_count']} snapshots) and workload.json."
 )
 PY
