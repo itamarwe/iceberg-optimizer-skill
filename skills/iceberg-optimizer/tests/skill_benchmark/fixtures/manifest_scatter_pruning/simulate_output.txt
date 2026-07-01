@@ -1,0 +1,52 @@
+ASSUMPTIONS (override with --assumptions; replace scan_fraction with measured values):
+{
+  "scan_price_per_tb_usd": 5.0,
+  "compaction_price_per_tb_usd": 5.0,
+  "storage_price_per_gb_month_usd": 0.023,
+  "scan_throughput_gb_s": 2.0,
+  "queries_per_month": 1000,
+  "assumed_prune_rate": 0.5,
+  "scan_fraction": {
+    "do_nothing": 1.0,
+    "light": 0.9,
+    "targeted_sort": 0.25,
+    "aggressive": 0.15,
+    "storage_min": 0.95
+  },
+  "storage_multiplier": {
+    "do_nothing": 1.3,
+    "light": 1.1,
+    "targeted_sort": 1.1,
+    "aggressive": 1.2,
+    "storage_min": 1.0
+  },
+  "runs_per_month": {
+    "do_nothing": 0,
+    "light": 4,
+    "targeted_sort": 4,
+    "aggressive": 30,
+    "storage_min": 1
+  },
+  "rewrite_scope": {
+    "do_nothing": "none",
+    "light": "small",
+    "targeted_sort": "full",
+    "aggressive": "full",
+    "storage_min": "small"
+  }
+}
+
+queries/month = 1000   priority = query_cost
+
+SCENARIO COMPARISON (directional estimates, not a benchmark):
+
+scenario        scan GB/q     latency s    query $/mo    maint $/mo      storage $/mo  total $/mo
+--------------  ------------  -----------  ------------  --------------  ------------  ------------
+do_nothing      1.5           0.75         7.32          0.0             47.87         55.19
+light           1.35          0.675        6.59          0.0             40.51         47.1
+targeted_sort   0.375         0.188        1.83          31.27           40.51         73.61
+aggressive      0.225         0.112        1.1           234.52          44.19         279.81
+storage_min     1.425         0.712        6.96          0.0             36.82         43.78
+
+>>> Optimizing for 'query_cost': recommend 'aggressive' (query_cost_month_usd = 1.1).
+    Re-run with a different --priority to see the trade-off shift.

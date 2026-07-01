@@ -387,6 +387,35 @@ quality), you need the Iceberg Java/Python library or a custom Spark UDF that
 reads the bounds as Iceberg types. For the SQL-only diagnostic above, use
 `avg_files_per_manifest` and `manifest_count` as heuristic proxies.
 
+### Measuring manifest pruning that actually fired (ScanReport)
+
+The diagnostics above measure clustering *capability* from static metadata. To
+measure the manifest pruning a query *actually achieved*, read Iceberg's
+**ScanReport** scan metrics — `scanned-data-manifests` vs `skipped-data-manifests`
+(also `total-data-manifests`, `skipped-data-files`, `total-planning-duration`).
+These are not in any query log; they come from an Iceberg **`MetricsReporter`**:
+
+- **Catalog property** (any engine on the Iceberg core): register a reporter via
+  `metrics-reporter-impl`, e.g.
+  `spark.sql.catalog.<cat>.metrics-reporter-impl=org.apache.iceberg.metrics.LoggingMetricsReporter`
+  (logs each report) or a custom reporter that appends `ScanReportParser.toJson(report)`
+  to a file. A **REST catalog** receives scan reports automatically.
+- **Spark SQL UI**: recent Iceberg also surfaces `scanned/skipped data manifests`
+  as read metrics on the SQL tab (and in the event log's SQL metrics).
+
+Collect the per-query ScanReport JSON (a JSON array or one object per line) and
+feed it to the workload parser:
+
+```
+scripts/parse_query_log.py --table cat.db.tbl --scan-report scan_reports.json --out workload.json
+```
+
+It emits a `manifest_pruning` block — `manifest_prune_rate`, `manifests_scanned`,
+`manifests_skipped`, `data_file_prune_rate`, `median_planning_ms`. A **low
+`manifest_prune_rate` while `partition_prune_rate` is high** is the direct,
+measured trigger for the *Cluster* variant of Action G (see decision-framework.md);
+re-capture a report after `rewrite_manifests(sort_by)` to confirm the rate rose.
+
 ---
 
 ## `history` — lifecycle arc

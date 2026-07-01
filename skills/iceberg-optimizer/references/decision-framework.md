@@ -45,6 +45,9 @@ From the workload and interview:
 ```
 top_filter_cols [(col, count, predicate_type, cardinality_class), ...]
 partition_prune_rate      = fraction of queries pruned to ≤10% of partitions
+manifest_prune_rate       = manifests_skipped / manifests_scanned+skipped (from a
+                            ScanReport, when available; high = planner skips most
+                            manifests, low-despite-selective-filters = manifest scatter)
 selectivity               = rows_scanned / rows_returned
 query_frequency_class, latency_req, freshness_req, cost_priority
 mutability_outlook, time_travel_need, lifecycle_class
@@ -192,12 +195,17 @@ a complete plan often includes actions from all three simultaneously.
 #### G. Manifest rewrite / clustering
 - **Trigger:** `manifest_count > ~500` OR `avg_files_per_manifest < 100` with many
   manifests OR `mixed_partition_specs` OR manifest pruning poor despite correct partition
-  spec.
+  spec. *Measured signal:* a low `manifest_prune_rate` (e.g. `< ~0.5`) **while queries do
+  carry selective partition filters** (`partition_prune_rate` is high) is direct evidence
+  of manifest scatter — prefer the **Cluster** variant. A low prune rate when the workload
+  is genuinely full-scan is expected and is NOT a trigger.
 - **Gate:** none — cheap, safe; include when triggered.
 - **Consolidate** (default): merges small manifests, reduces planning I/O.
 - **Cluster** (`sort_by` option in Spark): reorders manifests so each covers a contiguous
   partition range — enables manifest-level pruning for narrow filters. Spark-only.
 - **Trino:** `optimize_manifests` consolidates but does not cluster.
+- **Verify after:** re-capture a ScanReport — `manifest_prune_rate` should rise as the
+  planner begins skipping manifests it previously had to scan.
 
 #### H. Orphan-file removal (destructive)
 - **Trigger:** suspected failed writes / aborted jobs / external file operations.

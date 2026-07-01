@@ -367,5 +367,21 @@
       "lifecycle": "warm \u2014 actively used"
     },
     "expected_outcome": "The correct recommendation must recognize DuckDB as a lightweight Iceberg profiling/input engine: use INSTALL/LOAD iceberg plus iceberg_snapshots, iceberg_metadata, iceberg_column_stats, or iceberg_partition_stats against either a metadata path or an attached REST catalog. The optimization itself is driven by workload signals: tenant_id dominates the filters and partition_prune_rate=0.0, so partition evolution to bucket/hash by tenant_id or sort/z-order via a documented maintenance engine is needed. Because DuckDB's documented Iceberg support is not a Spark-style maintenance procedure layer, the answer must not fabricate DuckDB rewrite_data_files, expire_snapshots, remove_orphan_files, or manifest rewrite syntax. It should emit DuckDB inspection/validation SQL and route compaction/maintenance to Spark, Trino where supported, S3 Tables, or another documented engine."
+  },
+  {
+    "id": "manifest_scatter_pruning",
+    "description": "Table with healthy 205 MB data files but 1,200 scattered manifests (~7 files each). Queries filter selectively on the event_date partition column (partition_prune_rate 0.96), yet a ScanReport shows manifest_prune_rate 0.074 and ~4.2 s planning \u2014 the planner must scan almost every manifest. Correct: G manifest rewrite with CLUSTERING (rewrite_manifests sort_by event_date, Spark-only), NOT data-file compaction (files are already well-sized). Optionally expire the 2,880 accumulated snapshots.",
+    "table": "prod.streaming.page_events",
+    "engine": "Spark",
+    "interview_answers": {
+      "query_latency_requirement": "interactive \u2014 sub-second to seconds, user-facing dashboards",
+      "query_frequency": "constantly \u2014 hundreds of queries per hour",
+      "freshness_sla": "minutes is acceptable \u2014 micro-batch every 15 minutes",
+      "cost_priority": "query latency \u2014 query planning has become the bottleneck",
+      "mutability_outlook": "append-only \u2014 streaming inserts",
+      "time_travel_need": "short \u2014 a couple of days for rollback",
+      "lifecycle": "hot \u2014 actively used"
+    },
+    "expected_outcome": "The correct recommendation must identify that manifest pruning is failing: manifest_prune_rate is ~0.07 even though queries filter selectively on the event_date partition column (partition_prune_rate ~0.96) and planning takes ~4 seconds \u2014 classic manifest scatter across 1,200 manifests averaging ~7 files each. The fix is Action G manifest rewrite using the CLUSTERING variant: rewrite_manifests with sort_by on the partition column event_date (Spark), which reorders manifests so each covers a contiguous partition range and the planner can skip most of them. The recommendation should note this is Spark-only \u2014 Trino's optimize_manifests consolidates but cannot cluster. Snapshot expiry of the 2,880 accumulated snapshots is a reasonable secondary action. Data-file compaction, sort, or z-order is NOT the primary fix \u2014 files are already well-sized at ~205 MB and the bottleneck is metadata planning, not data scanning (note the simulator, which models scan bytes but not planning overhead, does not surface this). A recommendation that prescribes data-file compaction as the main action, ignores the low manifest_prune_rate despite high partition pruning, or only consolidates manifests without clustering by the partition column is incorrect."
   }
 ]

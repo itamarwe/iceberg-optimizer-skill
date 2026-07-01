@@ -51,7 +51,7 @@ connector/framework writes to this table?"*
 | Question | How to derive | Confirm/ask |
 |---|---|---|
 | **Writer type** (Flink / Spark SS / Spark batch / Kafka Connect / NiFi / Beam+Dataflow / Airbyte / Fivetran / AWS DMS / CDC / unknown) | `write_cadence` + `avg_added_file_mb` + `thin_spread` + `operation_mix` pattern | (D) "This looks like [type] based on [evidence]. Is that right? What connector/framework writes to this table?" |
-| **Distribution mode** (`none` / `hash` / `range`) | `thin_spread = true` → likely `none`; else unknown | (A) "Is `write.distribution-mode` set on the sink or as a table property? If yes, which value?" |
+| **Distribution mode** (`none` / `hash` / `range`) | `thin_spread = true` → likely `none`; else unknown. *If the sink/table config is readable, read it directly* | (D if config readable, else A) "Is `write.distribution-mode` set on the sink or as a table property? If yes, which value?" |
 | **Checkpoint / trigger interval** (Flink or Spark SS only) | Median inter-commit gap as a proxy | (D) "Commits land ~every Xs. Is that the checkpoint interval? What is it configured to?" |
 | **CDC write mode** (`mor` / `cow`) | Equality-delete presence → MOR; absence + overwrites → COW | (D) "We see equality-delete files accumulating → this looks like MOR (merge-on-read). Is the CDC sink configured for MOR or COW?" |
 | **CDC connector / framework** (Debezium / DeltaStreamer / AWS DMS / Hudi-bridge / other) | `operation_mix` has high `merge` or `overwrite` | (A) "Which CDC connector or framework generates these writes?" |
@@ -61,6 +61,28 @@ connector/framework writes to this table?"*
 `write.distribution-mode=hash` and checkpoint interval tuning; Spark SS needs
 trigger interval and fan-out settings; CDC pipelines may need MOR→COW switch.
 Without knowing the writer, any ingestion recommendation is a guess.
+
+### Read the writer directly when you can (Phase 2a)
+
+The signals above are *inferred* from snapshot metadata. When the writer's
+configuration or runtime logs are accessible — provided as files (Exported) or
+reachable in the environment (Direct) — read them and use the authoritative value
+instead of the proxy. This upgrades the `(A)` asks above to `(D)` derivations and is
+strictly better: config states `distribution_mode`, target file size, checkpoint
+interval, and write mode as fact, where metadata can only hint at them.
+
+| Writer | Where to read it | Fields → signals it confirms/overrides |
+|---|---|---|
+| **Flink** | sink `CREATE TABLE ... WITH (...)` options, `flink-conf.yaml`, JobManager/TaskManager logs | `write.distribution-mode`, `write-format`, `write.target-file-size-bytes`, `sink.parallelism`, `execution.checkpointing.interval` → `distribution_mode`, `avg_added_file_mb` target, `checkpoint_interval_secs`, and the *cause* of `thin_spread` |
+| **Spark Structured Streaming** | the streaming query's `.trigger(...)` and writer options, `spark.sql.shuffle.partitions`, driver logs / Spark UI Streaming tab | trigger interval → `write_cadence`; `fanout-enabled`, `distribution-mode` → `thin_spread` cause; `checkpointLocation` confirms exactly-once |
+| **Kafka Connect (Iceberg sink)** | connector config JSON (`iceberg.control.commit.interval-ms`, `iceberg.tables.*`, `flush.size`, `partitioner.class`), Connect worker logs | commit interval → `write_cadence`; routing/partitioner → `thin_spread`; `iceberg.tables.upsert` → MOR / equality-delete source |
+| **CDC (Debezium / AWS DMS / DeltaStreamer)** | connector/job config, task logs | write mode (MOR/COW), upsert/primary key → `ingestion_write_mode`, equality-delete origin |
+| **dbt / Spark batch ETL** | model config, job args, `spark.sql.sources.*` | partition spec, sort, `write.target-file-size-bytes` |
+
+When a value is read directly, state it as fact ("`write.distribution-mode=none`,
+per the Flink sink config") rather than asking — and reserve the interview for what
+logs and config genuinely cannot reveal: intent and SLAs (Part 2). Treat writer logs
+as read-only inputs like everything else in Phases 0–4.
 
 ---
 
