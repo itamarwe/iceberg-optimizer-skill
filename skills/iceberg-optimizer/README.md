@@ -71,6 +71,13 @@ the Glue catalog default. Snowflake can provide workload history and snapshots,
 but full physical profiling usually needs Spark, Trino, Glue, or another
 Iceberg-capable catalog reader.
 
+To smoke-test the generated Spark helper bundle against the local Docker
+Spark/Iceberg REST/MinIO stack:
+
+```bash
+tests/integration/smoke_input_helpers_docker.sh
+```
+
 ## Layout
 
 ```

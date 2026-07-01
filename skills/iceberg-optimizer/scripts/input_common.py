@@ -13,6 +13,26 @@ from textwrap import dedent
 
 METADATA_TABLES = ("snapshots", "files", "partitions", "manifests")
 
+SPARK_PROFILE_SELECTS = {
+    "snapshots": (
+        "committed_at, snapshot_id, parent_id, operation, "
+        "to_json(summary) AS summary"
+    ),
+    "files": "content, file_path, file_format, record_count, file_size_in_bytes",
+    "partitions": "record_count, file_count",
+    "manifests": "partition_spec_id",
+}
+
+TRINO_PROFILE_SELECTS = {
+    "snapshots": (
+        "committed_at, snapshot_id, parent_id, operation, "
+        "json_format(CAST(summary AS JSON)) AS summary"
+    ),
+    "files": "content, file_path, file_format, record_count, file_size_in_bytes",
+    "partitions": "record_count, file_count",
+    "manifests": "partition_spec_id",
+}
+
 
 def split_identifier(identifier):
     parts = [p.strip().strip('`"') for p in identifier.split(".") if p.strip()]
@@ -69,14 +89,16 @@ def render_metadata_sql(engine, table, catalog=None):
         for name in METADATA_TABLES:
             lines.extend([
                 f"-- output: {name}.csv",
-                f"SELECT * FROM {spark_ref(table, name, default_catalog)};",
+                f"SELECT {SPARK_PROFILE_SELECTS[name]}",
+                f"FROM {spark_ref(table, name, default_catalog)};",
                 "",
             ])
     elif engine == "trino":
         for name in METADATA_TABLES:
             lines.extend([
                 f"-- output: {name}.csv",
-                f"SELECT * FROM {trino_ref(table, name)};",
+                f"SELECT {TRINO_PROFILE_SELECTS[name]}",
+                f"FROM {trino_ref(table, name)};",
                 "",
             ])
     elif engine == "snowflake":

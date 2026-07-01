@@ -26,6 +26,7 @@ def test_trino_metadata_queries_use_dollar_table_syntax():
     sql = render_metadata_sql("trino", "cat.db.tbl")
 
     assert '"cat"."db"."tbl$files"' in sql
+    assert "json_format(CAST(summary AS JSON)) AS summary" in sql
     assert "-- output: snapshots.csv" in sql
     assert "-- output: manifests.csv" in sql
 
@@ -33,8 +34,9 @@ def test_trino_metadata_queries_use_dollar_table_syntax():
 def test_spark_metadata_queries_use_metadata_table_suffixes():
     sql = render_metadata_sql("spark", "cat.db.tbl")
 
-    assert "SELECT * FROM cat.db.tbl.files;" in sql
-    assert "SELECT * FROM cat.db.tbl.partitions;" in sql
+    assert "to_json(summary) AS summary" in sql
+    assert "FROM cat.db.tbl.files;" in sql
+    assert "SELECT record_count, file_count\nFROM cat.db.tbl.partitions;" in sql
 
 
 def test_glue_bundle_prepends_default_catalog_for_two_part_table():

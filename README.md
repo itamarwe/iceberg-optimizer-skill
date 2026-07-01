@@ -49,7 +49,8 @@ for the full walkthrough and standalone script usage.
 ```bash
 cd skills/iceberg-optimizer
 python -m pytest tests/                    # unit tests
-python tests/skill_benchmark/run_benchmark.py   # scenario benchmark
+python tests/skill_benchmark/run_benchmark.py --all   # scenario benchmark
+tests/integration/smoke_input_helpers_docker.sh  # Docker Spark/Iceberg helper smoke test
 ```
 
 The scripts are standard-library only (`sqlglot` optional). The skill never
