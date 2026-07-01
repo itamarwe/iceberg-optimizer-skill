@@ -21,8 +21,9 @@ asks before it decides, and simulates before it recommends.**
    scenarios across query latency, query cost, maintenance cost, and storage
    cost, driven by the table's real numbers, so you optimize for the axis you
    care about.
-5. **Plan** with exact, engine-specific commands (Spark, Trino, AWS Glue/EMR,
-   Snowflake, Flink / Kafka Connect) and a schedule.
+5. **Plan** as a Markdown report with a data-backed action summary, exact
+   engine-specific commands (Spark, Trino, AWS Glue/EMR, Snowflake, Flink /
+   Kafka Connect), monitoring, and a schedule.
 
 ## Install
 
@@ -60,6 +61,16 @@ skill never connects to your warehouse. The simulator's cost model is transparen
 and every assumption is printed and overridable via `--assumptions`; treat its
 output as directional, not a benchmark.
 
+## Output report
+
+The default handoff is `iceberg_optimization_report.md`: a Markdown report that
+starts with an executive summary and a `Summary: Why Each Action, In One
+Sentence` table. Each recommended, skipped, or deferred action is tied to a
+specific metric from `profile.json`, `workload.json`, interview answers, or the
+simulator output so the user can understand the recommendation and resume later.
+An HTML report can be generated as an optional follow-up, but Markdown is the
+source of truth.
+
 ## Layout
 
 ```
@@ -67,6 +78,7 @@ SKILL.md                          orchestrator: the 5-phase flow
 references/metadata-tables.md     metadata table schemas + diagnostic queries
 references/workload-interview.md  derive-then-ask question bank
 references/decision-framework.md  joint scoring rules + intent gates
+references/reporting.md           required Markdown recommendation report shape
 references/procedures.md          routing index → per-engine procedures
 references/scheduling.md          archetype→schedule matrix + triggers
 references/testing.md             how to validate recommendations safely

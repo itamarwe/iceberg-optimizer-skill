@@ -1,7 +1,7 @@
 # iceberg-optimizer-skill
 
 A [Claude Code](https://claude.com/claude-code) **Agent Skill** that diagnoses an
-Apache Iceberg table and produces a ranked, cost-aware plan across three domains —
+Apache Iceberg table and produces a ranked, cost-aware Markdown report across three domains —
 **table layout** (compaction, partition evolution, format upgrade), **ingestion
 pipeline** (write distribution, file sizing, sort-at-write), and **maintenance**
 (snapshot expiry, orphan cleanup, manifest rewrite) — plus a run schedule.
@@ -20,7 +20,7 @@ Engines: Spark · Trino · AWS Glue/EMR · Snowflake · Flink / Kafka Connect.
 skills/iceberg-optimizer/      the skill (this is what you install)
 ├── SKILL.md                   orchestrator: the 5-phase flow
 ├── README.md                  skill overview, install, and script usage
-├── references/                decision framework, procedures, interview, scheduling
+├── references/                decision framework, procedures, reporting, interview, scheduling
 ├── engines/                   per-engine syntax (spark, trino, glue, snowflake, …)
 ├── scripts/                   profile_table · parse_query_log · simulate (stdlib-only)
 ├── tests/                     unit tests + skill_benchmark fixtures

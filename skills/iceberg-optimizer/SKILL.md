@@ -34,8 +34,8 @@ with information that may never apply to this table.
 metadata) → **2 Workload** (2a derive ingestion/access signals · 2b interview for
 intent) → **3 Decide** (joint scoring → action groups, incl. "do nothing") →
 **4 Simulate** (perf / query-cost / maintenance-cost / storage) → **5 Plan**
-(exact engine commands + schedule + monitoring). Each phase below opens with a
-`> Load (...)` callout naming exactly what to read.
+(Markdown report with exact engine commands + schedule + monitoring). Each phase
+below opens with a `> Load (...)` callout naming exactly what to read.
 
 ### Phase 0 — Scope & safety
 
@@ -171,14 +171,26 @@ a post-compaction measurement via `--assumptions '{"scan_fraction":
 > `engines/spark.md` (+ `engines/glue.md` for Glue); Trino → `engines/trino.md`;
 > Snowflake → `engines/snowflake.md`; Group 2 actions → `engines/ingestion.md`
 > (may already be loaded). Do NOT load files for out-of-scope engines. Grep
-> `references/scheduling.md` only if a schedule is requested.
+> `references/scheduling.md` only if a schedule is requested. Read
+> `references/reporting.md` before writing the final recommendation report.
 
-Emit the concrete plan for the chosen scenario.
+Emit the concrete plan for the chosen scenario as a Markdown report. Name it
+`iceberg_optimization_report.md` unless the user requested another path. The
+report is the durable handoff artifact: it must let the user quit, reopen the
+thread later, and continue from the recorded profile/workload/simulation state.
+An HTML report is optional and only produced if the user asks for it after seeing
+the Markdown version.
 
 **Operation order — always:** (1) Group 2 ingestion fixes (writer config; takes
 effect next run), then (2) Group 1 table layout (compact → expire snapshots →
 remove orphans → rewrite manifests), then (3) Group 3 maintenance (schedule
 ongoing tasks). Never remove orphans before expiring snapshots.
+
+The report must include, near the top, `## Summary: Why Each Action, In One
+Sentence` with a two-column table: `Action` and `Why? (data-driven)`. Each row
+must cite the triggering metric(s) or gate(s) from `profile.json`, `workload.json`,
+the interview, or simulator output. Include skipped or rejected actions when a
+common action was considered but the data says not to run it.
 
 Then provide: **Commands** (exact, engine-specific, parameters from the profile —
 verify capabilities in the loaded engine file; e.g. Trino does NOT support
@@ -193,7 +205,7 @@ before running anything that deletes files or rewrites data.
 ## Files in this skill
 
 Only `SKILL.md` loads up front. `references/` (metadata-tables, workload-interview,
-decision-framework, scheduling) and `engines/` (spark, glue, trino, snowflake,
+decision-framework, reporting, scheduling) and `engines/` (spark, glue, trino, snowflake,
 ingestion) load on demand at the `> Load (...)` callouts above. Scripts run
 directly, never into context: `profile_table.py`, `parse_query_log.py`,
 `simulate.py` under `scripts/`.
